@@ -28,15 +28,15 @@ This library was built with a different philosophy:
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| `@agal1aoui/dnd-core` | Core drag engine, sensors, and collision detection |
-| `@agal1aoui/vertical-dnd` | Vertical sortable lists |
-| `@agal1aoui/horizontal-dnd` | Horizontal sortable lists |
-| `@agal1aoui/board-dnd` | Kanban-style multi-column boards |
-| `@agal1aoui/layout-dnd` | Flexible grid/flex layouts |
-| `@agal1aoui/react-dnd` | React hooks and components |
-| `@agal1aoui/angular-dnd` | Angular directives and services |
+| Package                     | Description                                        |
+|-----------------------------|----------------------------------------------------|
+| `@agal1aoui/dnd-core`       | Core drag engine, sensors, and collision detection |
+| `@agal1aoui/vertical-dnd`   | Vertical sortable lists                            |
+| `@agal1aoui/horizontal-dnd` | Horizontal sortable lists                          |
+| `@agal1aoui/board-dnd`      | Kanban-style multi-column boards                   |
+| `@agal1aoui/layout-dnd`     | Flexible grid/flex layouts                         |
+| `@agal1aoui/react-dnd`      | React hooks and components                         |
+| `@agal1aoui/angular-dnd`    | Angular directives and services                    |
 
 ## Installation
 
@@ -279,11 +279,11 @@ export class HorizontalTabsComponent {
 
 The library adds data attributes to elements during drag operations, making it easy to style with CSS:
 
-| Attribute | Applied To | When |
-|-----------|------------|------|
-| `data-dnd-dragging` | Dragged element | While being dragged |
-| `data-dnd-over` | Droppable element | When dragged item is over it |
-| `data-dnd-handle` | Handle element | When using drag handles |
+| Attribute           | Applied To        | When                         |
+|---------------------|-------------------|------------------------------|
+| `data-dnd-dragging` | Dragged element   | While being dragged          |
+| `data-dnd-over`     | Droppable element | When dragged item is over it |
+| `data-dnd-handle`   | Handle element    | When using drag handles      |
 
 ### TailwindCSS Examples
 
@@ -403,23 +403,23 @@ sortable.destroy()
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────┐
 │                    Framework Layer                       │
-│  ┌─────────────────┐         ┌─────────────────┐        │
+│  ┌─────────────────┐         ┌───────────────────┐       │
 │  │   React Hooks   │         │ Angular Directives│       │
-│  │ (zero re-render)│         │ (NgZone.outside) │        │
-│  └────────┬────────┘         └────────┬────────┘        │
-└───────────┼──────────────────────────┼──────────────────┘
-            │                          │
-┌───────────▼──────────────────────────▼──────────────────┐
+│  │ (zero re-render)│         │ (NgZone.outside)  │       │
+│  └────────┬────────┘         └────────┬──────────┘       │
+└───────────┼───────────────────────────┼──────────────────┘
+            │                           │
+┌───────────▼───────────────────────────▼──────────────────┐
 │                   Sortable Layer                         │
-│  ┌──────────┐ ┌────────────┐ ┌───────┐ ┌────────┐       │
-│  │ Vertical │ │ Horizontal │ │ Board │ │ Layout │       │
-│  └────┬─────┘ └─────┬──────┘ └───┬───┘ └───┬────┘       │
-└───────┼─────────────┼────────────┼─────────┼────────────┘
+│  ┌──────────┐ ┌────────────┐ ┌───────┐ ┌────────┐        │
+│  │ Vertical │ │ Horizontal │ │ Board │ │ Layout │        │
+│  └────┬─────┘ └─────┬──────┘ └───┬───┘ └───┬────┘        │
+└───────┼─────────────┼────────────┼─────────┼─────────────┘
         │             │            │         │
 ┌───────▼─────────────▼────────────▼─────────▼────────────┐
-│                     Core Layer                           │
+│                     Core Layer                          │
 │  ┌────────────┐  ┌───────────┐  ┌────────────────┐      │
 │  │ DragEngine │  │  Sensors  │  │   Collision    │      │
 │  │            │  │ (Pointer) │  │  (AABB, etc.)  │      │
