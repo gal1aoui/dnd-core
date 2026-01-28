@@ -40,7 +40,6 @@ export interface DndReorderEvent<T> {
   standalone: true,
 })
 export class DndHorizontalListDirective<T> implements OnInit, OnDestroy, OnChanges {
-  private readonly elementRef = inject(ElementRef<HTMLElement>)
   private readonly ngZone = inject(NgZone)
 
   @Input({ required: true }) dndHorizontalList!: T[]

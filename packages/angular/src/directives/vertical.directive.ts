@@ -10,13 +10,13 @@ import {
   Input,
   Output,
   EventEmitter,
-  ElementRef,
   OnInit,
   OnDestroy,
   OnChanges,
   SimpleChanges,
   NgZone,
   inject,
+  ElementRef,
 } from '@angular/core'
 import {
   createDragEngine,
@@ -40,7 +40,6 @@ export interface DndReorderEvent<T> {
   standalone: true,
 })
 export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges {
-  private readonly elementRef = inject(ElementRef<HTMLElement>)
   private readonly ngZone = inject(NgZone)
 
   @Input({ required: true }) dndVerticalList!: T[]
