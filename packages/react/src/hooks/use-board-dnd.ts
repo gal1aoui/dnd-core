@@ -5,7 +5,7 @@
  * and DOM is manipulated directly. React state only updates on drop.
  */
 
-import { useRef, useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useRef, useCallback, useEffect, useSyncExternalStore, type MutableRefObject } from 'react'
 import {
   createDragEngine,
   type DragEngine,
@@ -28,6 +28,8 @@ export interface ItemMoveEvent<TItem> {
   toIndex: number
 }
 
+export type IndicatorColor = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'default'
+
 export interface UseBoardDndOptions<TColumn, TItem> {
   columns: TColumn[]
   columnKeyExtractor: (column: TColumn) => string
@@ -36,10 +38,18 @@ export interface UseBoardDndOptions<TColumn, TItem> {
   onItemMove: (event: ItemMoveEvent<TItem>) => void
   onDragStart?: (item: TItem, columnId: string) => void
   onDragEnd?: (item: TItem, cancelled: boolean) => void
+  /** Called before drag starts. Return false to prevent drag. */
+  onBeforeDragStart?: (item: TItem, element: HTMLElement, columnId: string) => boolean | void
+  /** Called after drag ends and all cleanup is complete */
+  onAfterDragEnd?: (item: TItem, cancelled: boolean, fromColumnId: string, toColumnId: string, fromIndex: number, toIndex: number) => void
   itemHandle?: string
   itemsDisabled?: boolean
   itemGap?: number
   animationDuration?: number
+  /** Opacity of placeholder at original position (0-1). Default: 0.5 */
+  placeholderOpacity?: number
+  /** Color theme for drop indicator. Default: 'primary' */
+  indicatorColor?: IndicatorColor
 }
 
 export interface BoardColumnProps {
@@ -69,6 +79,7 @@ interface DragState<TItem> {
   activeIndex: number
   currentColumnId: string | null
   currentIndex: number
+  activeItemHeight: number
 }
 
 export function useBoardDnd<TColumn, TItem>(
@@ -86,6 +97,8 @@ export function useBoardDnd<TColumn, TItem>(
     itemsDisabled = false,
     itemGap = 0,
     animationDuration = 200,
+    placeholderOpacity = 0.5,
+    indicatorColor = 'primary',
   } = options
 
   const engineRef = useRef<DragEngine | null>(null)
@@ -104,7 +117,11 @@ export function useBoardDnd<TColumn, TItem>(
     activeIndex: -1,
     currentColumnId: null,
     currentIndex: -1,
+    activeItemHeight: 0,
   })
+
+  const dropIndicatorRef = useRef<HTMLElement | null>(null)
+  const placeholderRef = useRef<HTMLElement | null>(null)
 
   const snapshotVersionRef = useRef(0)
   const subscribersRef = useRef<Set<() => void>>(new Set())
@@ -132,8 +149,9 @@ export function useBoardDnd<TColumn, TItem>(
   }, [])
 
   // Stable refs for callbacks
-  const callbacksRef = useRef({ onItemMove, onDragStart, onDragEnd })
-  callbacksRef.current = { onItemMove, onDragStart, onDragEnd }
+  const { onBeforeDragStart, onAfterDragEnd } = options
+  const callbacksRef = useRef({ onItemMove, onDragStart, onDragEnd, onBeforeDragStart, onAfterDragEnd })
+  callbacksRef.current = { onItemMove, onDragStart, onDragEnd, onBeforeDragStart, onAfterDragEnd }
 
   const columnsRef = useRef(columns)
   columnsRef.current = columns
@@ -159,18 +177,32 @@ export function useBoardDnd<TColumn, TItem>(
       const item = columnItems.find(i => itemKeyExtractor(i) === data.itemId)
       if (!item) return
 
+      const key = `${data.columnId}:${data.itemId}`
+      const activeEl = itemElementsRef.current.get(key)
+      if (!activeEl) return
+
+      // Call onBeforeDragStart hook - return false to prevent drag
+      if (callbacksRef.current.onBeforeDragStart) {
+        const result = callbacksRef.current.onBeforeDragStart(item, activeEl, data.columnId)
+        if (result === false) {
+          return
+        }
+      }
+
       const index = columnItems.indexOf(item)
 
       // Cache rects at drag start
       itemRectsRef.current.clear()
       columnRectsRef.current.clear()
 
-      for (const [key, el] of itemElementsRef.current) {
-        itemRectsRef.current.set(key, el.getBoundingClientRect())
+      for (const [k, el] of itemElementsRef.current) {
+        itemRectsRef.current.set(k, el.getBoundingClientRect())
       }
       for (const [id, el] of columnElementsRef.current) {
         columnRectsRef.current.set(id, el.getBoundingClientRect())
       }
+
+      const activeRect = activeEl.getBoundingClientRect()
 
       dragStateRef.current = {
         isDragging: true,
@@ -180,15 +212,30 @@ export function useBoardDnd<TColumn, TItem>(
         activeIndex: index,
         currentColumnId: data.columnId,
         currentIndex: index,
+        activeItemHeight: activeRect.height,
       }
 
-      const key = `${data.columnId}:${data.itemId}`
-      const activeEl = itemElementsRef.current.get(key)
-      if (activeEl) {
-        activeEl.style.zIndex = '9999'
-        activeEl.style.position = 'relative'
-        activeEl.style.transition = 'none'
-      }
+      activeEl.style.zIndex = '9999'
+      activeEl.style.position = 'relative'
+      activeEl.style.transition = 'none'
+      activeEl.setAttribute('data-dnd-dragging', '')
+
+      // Create placeholder at original position
+      createPlaceholder(activeEl, placeholderOpacity, placeholderRef)
+
+      // Create drop indicator
+      createDropIndicator(activeRect.height, indicatorColor, dropIndicatorRef)
+
+      // Show initial drop indicator position
+      updateDropIndicator(
+        dragStateRef.current,
+        itemGap,
+        columnsRef.current,
+        extractorsRef.current,
+        columnElementsRef.current,
+        itemRectsRef.current,
+        dropIndicatorRef
+      )
 
       callbacksRef.current.onDragStart?.(item, data.columnId)
     })
@@ -224,6 +271,15 @@ export function useBoardDnd<TColumn, TItem>(
           itemElementsRef.current,
           itemRectsRef.current
         )
+        updateDropIndicator(
+          state,
+          itemGap,
+          columnsRef.current,
+          extractorsRef.current,
+          columnElementsRef.current,
+          itemRectsRef.current,
+          dropIndicatorRef
+        )
       } else if (targetColumnId) {
         const newIndex = findInsertIndex(
           targetColumnId,
@@ -244,6 +300,15 @@ export function useBoardDnd<TColumn, TItem>(
             itemElementsRef.current,
             itemRectsRef.current
           )
+          updateDropIndicator(
+            state,
+            itemGap,
+            columnsRef.current,
+            extractorsRef.current,
+            columnElementsRef.current,
+            itemRectsRef.current,
+            dropIndicatorRef
+          )
         }
       }
     })
@@ -252,32 +317,40 @@ export function useBoardDnd<TColumn, TItem>(
       const state = dragStateRef.current
       if (!state.isDragging) return
 
+      // Clean up placeholder and drop indicator
+      cleanupPlaceholder(placeholderRef)
+      cleanupDropIndicator(dropIndicatorRef)
+
       // Reset all styles
       for (const [, el] of itemElementsRef.current) {
         el.style.transform = ''
         el.style.zIndex = ''
         el.style.position = ''
+        el.style.opacity = ''
         el.style.transition = `transform ${animationDuration}ms cubic-bezier(0.2, 0, 0, 1)`
+        el.removeAttribute('data-dnd-original')
+        el.removeAttribute('data-dnd-dragging')
       }
 
-      if (!event.cancelled) {
-        const fromColumnId = state.activeColumnId!
-        const toColumnId = state.currentColumnId!
-        const fromIndex = state.activeIndex
-        const toIndex = state.currentIndex
+      const fromColumnId = state.activeColumnId!
+      const toColumnId = state.currentColumnId!
+      const fromIndex = state.activeIndex
+      const toIndex = event.cancelled ? state.activeIndex : state.currentIndex
+      const item = state.activeItem!
 
-        if (fromColumnId !== toColumnId || fromIndex !== toIndex) {
+      if (!event.cancelled) {
+        if (fromColumnId !== toColumnId || fromIndex !== state.currentIndex) {
           callbacksRef.current.onItemMove({
-            item: state.activeItem!,
+            item,
             fromColumn: fromColumnId,
             toColumn: toColumnId,
             fromIndex,
-            toIndex,
+            toIndex: state.currentIndex,
           })
         }
       }
 
-      callbacksRef.current.onDragEnd?.(state.activeItem!, event.cancelled)
+      callbacksRef.current.onDragEnd?.(item, event.cancelled)
 
       dragStateRef.current = {
         isDragging: false,
@@ -287,12 +360,17 @@ export function useBoardDnd<TColumn, TItem>(
         activeIndex: -1,
         currentColumnId: null,
         currentIndex: -1,
+        activeItemHeight: 0,
       }
       itemRectsRef.current.clear()
       columnRectsRef.current.clear()
+
+      // Call onAfterDragEnd hook after all cleanup
+      callbacksRef.current.onAfterDragEnd?.(item, event.cancelled, fromColumnId, toColumnId, fromIndex, toIndex)
+
       notifySubscribers()
     })
-  }, [itemGap, animationDuration, notifySubscribers])
+  }, [itemGap, animationDuration, placeholderOpacity, indicatorColor, notifySubscribers])
 
   // Register items
   useEffect(() => {
@@ -487,25 +565,150 @@ function updatePositions<TColumn, TItem>(
 
       let translateY = 0
 
-      if (columnId === state.activeColumnId) {
-        if (columnId === state.currentColumnId) {
-          if (i >= state.currentIndex && i < state.activeIndex) {
-            translateY = rect.height + gap
-          } else if (i <= state.currentIndex && i > state.activeIndex) {
-            translateY = -(rect.height + gap)
-          }
-        } else {
-          if (i > state.activeIndex) {
-            translateY = -(rect.height + gap)
-          }
+      if (columnId === state.activeColumnId && columnId === state.currentColumnId) {
+        // Same column: items shift based on position relative to active and current index
+        if (i >= state.currentIndex && i < state.activeIndex) {
+          translateY = state.activeItemHeight + gap
+        } else if (i <= state.currentIndex && i > state.activeIndex) {
+          translateY = -(state.activeItemHeight + gap)
         }
+      } else if (columnId === state.activeColumnId) {
+        // Source column but dragging to different column:
+        // Don't shift items - placeholder keeps the space
+        translateY = 0
       } else if (columnId === state.currentColumnId) {
+        // Target column (different from source): items shift down to make room
         if (i >= state.currentIndex) {
-          translateY = rect.height + gap
+          translateY = state.activeItemHeight + gap
         }
       }
 
       el.style.transform = translateY !== 0 ? `translate3d(0, ${translateY}px, 0)` : ''
     }
   }
+}
+
+function createPlaceholder(
+  element: HTMLElement,
+  opacity: number,
+  placeholderRef: MutableRefObject<HTMLElement | null>
+): void {
+  // Create a clone as placeholder
+  const placeholder = element.cloneNode(true) as HTMLElement
+  placeholder.setAttribute('data-dnd-placeholder', '')
+  placeholder.style.opacity = String(opacity)
+  placeholder.style.pointerEvents = 'none'
+  placeholder.style.position = 'absolute'
+  placeholder.style.top = '0'
+  placeholder.style.left = '0'
+  placeholder.style.right = '0'
+  placeholder.style.zIndex = '1'
+  placeholder.style.transform = 'none'
+
+  // Make the original invisible but keep space
+  element.style.opacity = '0'
+  element.setAttribute('data-dnd-original', '')
+
+  // Insert placeholder before the element
+  element.parentElement?.insertBefore(placeholder, element)
+
+  placeholderRef.current = placeholder
+}
+
+function createDropIndicator(
+  _height: number,
+  _color: IndicatorColor,
+  _dropIndicatorRef: MutableRefObject<HTMLElement | null>
+): void {
+  // We now use CSS-based indicators via data attributes, no DOM element needed
+}
+
+function updateDropIndicator<TColumn, TItem>(
+  state: DragState<TItem>,
+  _gap: number,
+  columns: TColumn[],
+  extractors: {
+    columnKeyExtractor: (c: TColumn) => string
+    itemKeyExtractor: (i: TItem) => string
+    getColumnItems: (c: TColumn) => TItem[]
+  },
+  columnElements: Map<string, HTMLElement>,
+  _itemRects: Map<string, DOMRect>,
+  _dropIndicatorRef: MutableRefObject<HTMLElement | null>
+): void {
+  const { columnKeyExtractor, itemKeyExtractor, getColumnItems } = extractors
+
+  // Clear all existing drop indicators
+  for (const [, colEl] of columnElements) {
+    const items = colEl.querySelectorAll('[data-dnd-board-item]')
+    items.forEach(item => {
+      item.removeAttribute('data-dnd-drop-before')
+      item.removeAttribute('data-dnd-drop-after')
+    })
+    colEl.removeAttribute('data-dnd-drop-empty')
+  }
+
+  const columnEl = columnElements.get(state.currentColumnId!)
+  if (!columnEl) return
+
+  // Find the column
+  const column = columns.find(c => columnKeyExtractor(c) === state.currentColumnId)
+  if (!column) return
+
+  const columnItems = getColumnItems(column)
+
+  // Count visible items (excluding the dragged item if in same column)
+  let visibleItems: Array<{ id: string; index: number }> = []
+  for (let i = 0; i < columnItems.length; i++) {
+    const itemId = itemKeyExtractor(columnItems[i]!)
+    if (state.currentColumnId === state.activeColumnId && itemId === state.activeItemId) {
+      continue
+    }
+    visibleItems.push({ id: itemId, index: visibleItems.length })
+  }
+
+  if (visibleItems.length === 0) {
+    // Empty column or only contains the dragged item
+    columnEl.setAttribute('data-dnd-drop-empty', '')
+    return
+  }
+
+  // Find which item should show the drop indicator
+  if (state.currentIndex === 0) {
+    // Dropping at the start - show indicator BEFORE first visible item
+    const firstItem = columnEl.querySelector(`[data-dnd-item-id="${visibleItems[0]!.id}"]`)
+    if (firstItem) {
+      firstItem.setAttribute('data-dnd-drop-before', '')
+    }
+  } else if (state.currentIndex >= visibleItems.length) {
+    // Dropping at the end - show indicator AFTER last visible item
+    const lastItem = columnEl.querySelector(`[data-dnd-item-id="${visibleItems[visibleItems.length - 1]!.id}"]`)
+    if (lastItem) {
+      lastItem.setAttribute('data-dnd-drop-after', '')
+    }
+  } else {
+    // Dropping in the middle - show indicator BEFORE the item at currentIndex
+    const targetItem = columnEl.querySelector(`[data-dnd-item-id="${visibleItems[state.currentIndex]!.id}"]`)
+    if (targetItem) {
+      targetItem.setAttribute('data-dnd-drop-before', '')
+    }
+  }
+}
+
+function cleanupPlaceholder(
+  placeholderRef: MutableRefObject<HTMLElement | null>
+): void {
+  if (placeholderRef.current) {
+    placeholderRef.current.remove()
+    placeholderRef.current = null
+  }
+}
+
+function cleanupDropIndicator(
+  _dropIndicatorRef: MutableRefObject<HTMLElement | null>
+): void {
+  // Clean up CSS-based indicators
+  document.querySelectorAll('[data-dnd-drop-before]').forEach(el => el.removeAttribute('data-dnd-drop-before'))
+  document.querySelectorAll('[data-dnd-drop-after]').forEach(el => el.removeAttribute('data-dnd-drop-after'))
+  document.querySelectorAll('[data-dnd-drop-empty]').forEach(el => el.removeAttribute('data-dnd-drop-empty'))
 }

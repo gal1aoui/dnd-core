@@ -179,17 +179,34 @@ export function isPointInRect(point: Position, rect: Rect): boolean {
 /**
  * Get drop position within a sortable list
  * Returns the index where the item should be inserted
+ *
+ * @param pointerPosition - Current pointer position
+ * @param items - Array of item elements
+ * @param direction - 'vertical' or 'horizontal'
+ * @param excludeIndex - Index of the dragging item to exclude
+ * @param cachedRects - Optional pre-cached rects (use this during drag to avoid reading transformed positions)
  */
 export function getDropIndex(
   pointerPosition: Position,
   items: HTMLElement[],
   direction: 'vertical' | 'horizontal',
-  excludeIndex?: number
+  excludeIndex?: number,
+  cachedRects?: Map<number, Rect> | Rect[]
 ): number {
+  const getItemRect = (index: number): Rect => {
+    if (cachedRects) {
+      if (cachedRects instanceof Map) {
+        return cachedRects.get(index) ?? getRect(items[index]!)
+      }
+      return cachedRects[index] ?? getRect(items[index]!)
+    }
+    return getRect(items[index]!)
+  }
+
   for (let i = 0; i < items.length; i++) {
     if (i === excludeIndex) continue
 
-    const rect = getRect(items[i]!)
+    const rect = getItemRect(i)
     const center = getCenter(rect)
 
     if (direction === 'vertical') {

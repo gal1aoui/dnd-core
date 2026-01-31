@@ -123,6 +123,16 @@ export interface DragEventHandlers {
   onDrop?: (event: DropEvent) => void
 }
 
+/** Map event type to handler key */
+const EVENT_TO_HANDLER: Record<string, keyof DragEventHandlers> = {
+  dragstart: 'onDragStart',
+  dragmove: 'onDragMove',
+  dragover: 'onDragOver',
+  dragleave: 'onDragLeave',
+  dragend: 'onDragEnd',
+  drop: 'onDrop',
+}
+
 /** Create an event emitter */
 export function createEventEmitter() {
   const handlers: DragEventHandlers = {}
@@ -140,7 +150,9 @@ export function createEventEmitter() {
     },
 
     emit<E extends DndEvent>(event: E): void {
-      const handlerKey = `on${event.type.charAt(0).toUpperCase()}${event.type.slice(1)}` as keyof DragEventHandlers
+      const handlerKey = EVENT_TO_HANDLER[event.type]
+      if (!handlerKey) return
+
       const handler = handlers[handlerKey]
       if (handler) {
         // @ts-expect-error - TypeScript can't narrow the handler type correctly

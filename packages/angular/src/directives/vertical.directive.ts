@@ -25,7 +25,9 @@ import {
   type DragMoveEvent,
   type DragEndEvent,
   type CleanupFn,
+  type Rect,
   getDropIndex,
+  getRect,
 } from '@agal1aoui/dnd-core'
 
 export interface DndReorderEvent<T> {
@@ -33,6 +35,13 @@ export interface DndReorderEvent<T> {
   fromIndex: number
   toIndex: number
   items: T[]
+}
+
+export interface DndAfterDragEndEvent<T> {
+  item: T
+  cancelled: boolean
+  fromIndex: number
+  toIndex: number
 }
 
 @Directive({
@@ -48,15 +57,20 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
   @Input() dndDisabled = false
   @Input() dndGap = 0
   @Input() dndAnimationDuration = 200
+  /** Called before drag starts. Return false from handler to prevent drag. */
+  @Input() dndBeforeDragStart?: (item: T, element: HTMLElement) => boolean | void
 
   @Output() dndReorder = new EventEmitter<DndReorderEvent<T>>()
   @Output() dndDragStart = new EventEmitter<T>()
   @Output() dndDragEnd = new EventEmitter<{ item: T; cancelled: boolean }>()
+  /** Emitted after drag ends and all cleanup is complete */
+  @Output() dndAfterDragEnd = new EventEmitter<DndAfterDragEndEvent<T>>()
 
   private engine: DragEngine | null = null
   private cleanupFns = new Map<string, CleanupFn>()
   private itemElements = new Map<string, HTMLElement>()
   private itemRects = new Map<string, DOMRect>()
+  private indexedRects = new Map<number, Rect>()
 
   // Mutable drag state (no Angular bindings during drag)
   private dragState = {
@@ -131,14 +145,31 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
     const item = this.findItemById(event.draggableId)
     if (!item) return
 
+    const activeEl = this.itemElements.get(event.draggableId)
+    if (!activeEl) return
+
+    // Call onBeforeDragStart hook - return false to prevent drag
+    if (this.dndBeforeDragStart) {
+      const result = this.dndBeforeDragStart(item, activeEl)
+      if (result === false) {
+        return
+      }
+    }
+
     const index = this.dndVerticalList.findIndex(
       i => this.dndKeyExtractor(i) === event.draggableId
     )
 
-    // Cache rects at drag start
+    // Cache rects at drag start (by id and by index for getDropIndex)
     this.itemRects.clear()
+    this.indexedRects.clear()
+
+    let i = 0
     for (const [id, el] of this.itemElements) {
+      const rect = getRect(el)
       this.itemRects.set(id, el.getBoundingClientRect())
+      this.indexedRects.set(i, rect)
+      i++
     }
 
     this.dragState = {
@@ -150,12 +181,9 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
     }
 
     // Set styles directly (no change detection)
-    const activeEl = this.itemElements.get(event.draggableId)
-    if (activeEl) {
-      activeEl.style.zIndex = '9999'
-      activeEl.style.position = 'relative'
-      activeEl.style.transition = 'none'
-    }
+    activeEl.style.zIndex = '9999'
+    activeEl.style.position = 'relative'
+    activeEl.style.transition = 'none'
 
     // Re-enter Angular ONLY for the callback
     this.ngZone.run(() => {
@@ -173,8 +201,15 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
       activeEl.style.transform = `translate3d(0, ${event.delta.y}px, 0)`
     }
 
+    // Calculate new drop index using cached rects
     const elements = Array.from(this.itemElements.values())
-    const newIndex = getDropIndex(event.position, elements, 'vertical', state.activeIndex)
+    const newIndex = getDropIndex(
+      event.position,
+      elements,
+      'vertical',
+      state.activeIndex,
+      this.indexedRects
+    )
 
     if (newIndex !== state.currentIndex) {
       state.currentIndex = newIndex
@@ -198,6 +233,10 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
       el.style.transition = `transform ${this.dndAnimationDuration}ms cubic-bezier(0.2, 0, 0, 1)`
     }
 
+    // Store final indices before resetting state
+    const finalFromIndex = fromIndex
+    const finalToIndex = event.cancelled ? fromIndex : toIndex
+
     // Re-enter Angular zone for state updates
     this.ngZone.run(() => {
       if (fromIndex !== toIndex && fromIndex !== -1 && !event.cancelled) {
@@ -214,6 +253,14 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
       }
 
       this.dndDragEnd.emit({ item, cancelled: event.cancelled })
+
+      // Emit onAfterDragEnd after all cleanup
+      this.dndAfterDragEnd.emit({
+        item,
+        cancelled: event.cancelled,
+        fromIndex: finalFromIndex,
+        toIndex: finalToIndex,
+      })
     })
 
     // Reset drag state
@@ -225,6 +272,7 @@ export class DndVerticalListDirective<T> implements OnInit, OnDestroy, OnChanges
       currentIndex: -1,
     }
     this.itemRects.clear()
+    this.indexedRects.clear()
   }
 
   private updateSiblingPositions(): void {

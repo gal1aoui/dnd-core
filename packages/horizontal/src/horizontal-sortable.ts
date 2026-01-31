@@ -9,7 +9,9 @@ import {
   type DragStartEvent,
   type DragMoveEvent,
   type DragEndEvent,
+  type Rect,
   getDropIndex,
+  getRect,
 } from '@agal1aoui/dnd-core'
 
 /** Item in the sortable list */
@@ -39,6 +41,10 @@ export interface HorizontalSortableOptions<T = unknown> {
   onDragStart?: (item: SortableItem<T>) => void
   /** Optional callback when drag ends */
   onDragEnd?: (item: SortableItem<T>, cancelled: boolean) => void
+  /** Called before drag starts. Return false to prevent drag. */
+  onBeforeDragStart?: (item: SortableItem<T>, element: HTMLElement) => boolean | void
+  /** Called after drag ends and all cleanup is complete */
+  onAfterDragEnd?: (item: SortableItem<T>, cancelled: boolean, fromIndex: number, toIndex: number) => void
   /** CSS selector for drag handle (optional) */
   handle?: string
   /** Disable sorting */
@@ -62,6 +68,7 @@ export class HorizontalSortable<T = unknown> {
   private currentIndex: number = -1
   private itemElements: HTMLElement[] = []
   private itemRects: Map<string, DOMRect> = new Map()
+  private indexedRects: Map<number, Rect> = new Map()
 
   constructor(options: HorizontalSortableOptions<T>) {
     this.options = {
@@ -155,24 +162,39 @@ export class HorizontalSortable<T = unknown> {
 
   private handleDragStart(event: DragStartEvent): void {
     const item = event.data as SortableItem<T>
-    if (!item) return
+    if (!item || !item.element) return
+
+    // Call onBeforeDragStart hook - return false to prevent drag
+    if (this.options.onBeforeDragStart) {
+      const result = this.options.onBeforeDragStart(item, item.element)
+      if (result === false) {
+        return
+      }
+    }
 
     this.draggingItem = item
     this.draggingIndex = this.items.findIndex(i => i.id === item.id)
     this.currentIndex = this.draggingIndex
 
+    // Cache all item rects (by id and by index for getDropIndex)
     this.itemRects.clear()
-    for (const el of this.itemElements) {
+    this.indexedRects.clear()
+
+    for (let i = 0; i < this.itemElements.length; i++) {
+      const el = this.itemElements[i]!
       const id = el.dataset.dndSortableId
+      const rect = getRect(el)
+
       if (id) {
         this.itemRects.set(id, el.getBoundingClientRect())
       }
+      this.indexedRects.set(i, rect)
     }
 
-    if (item.element) {
-      item.element.style.zIndex = '9999'
-      item.element.style.position = 'relative'
-    }
+    // Set dragging element styles
+    item.element.style.zIndex = '9999'
+    item.element.style.position = 'relative'
+    item.element.style.transition = 'none' // Disable transition during drag
 
     this.options.onDragStart?.(item)
   }
@@ -183,17 +205,20 @@ export class HorizontalSortable<T = unknown> {
     const draggingElement = this.draggingItem.element
     if (!draggingElement) return
 
+    // Move dragging element with pointer using translate3d for GPU acceleration
     if (this.options.lockAxis) {
-      draggingElement.style.transform = `translateX(${event.delta.x}px)`
+      draggingElement.style.transform = `translate3d(${event.delta.x}px, 0, 0)`
     } else {
-      draggingElement.style.transform = `translate(${event.delta.x}px, ${event.delta.y}px)`
+      draggingElement.style.transform = `translate3d(${event.delta.x}px, ${event.delta.y}px, 0)`
     }
 
+    // Calculate new index based on pointer position using cached rects
     const newIndex = getDropIndex(
       event.position,
       this.itemElements,
       'horizontal',
-      this.draggingIndex
+      this.draggingIndex,
+      this.indexedRects
     )
 
     if (newIndex !== this.currentIndex) {
@@ -208,14 +233,18 @@ export class HorizontalSortable<T = unknown> {
     const item = this.draggingItem
     const fromIndex = this.draggingIndex
     const toIndex = this.currentIndex
+    const { animationDuration = 200 } = this.options
 
+    // Reset all transforms with transition
     for (const el of this.itemElements) {
       el.style.transform = ''
       el.style.zIndex = ''
       el.style.position = ''
+      el.style.transition = `transform ${animationDuration}ms cubic-bezier(0.2, 0, 0, 1)`
     }
 
-    if (fromIndex !== toIndex && !event.cancelled) {
+    // Emit reorder event if position changed
+    if (fromIndex !== toIndex && fromIndex !== -1 && !event.cancelled) {
       const reorderedItems = [...this.items]
       const [movedItem] = reorderedItems.splice(fromIndex, 1)
       reorderedItems.splice(toIndex, 0, movedItem!)
@@ -230,14 +259,22 @@ export class HorizontalSortable<T = unknown> {
 
     this.options.onDragEnd?.(item, event.cancelled)
 
+    // Reset state
+    const finalFromIndex = fromIndex
+    const finalToIndex = event.cancelled ? fromIndex : toIndex
+
     this.draggingItem = null
     this.draggingIndex = -1
     this.currentIndex = -1
     this.itemRects.clear()
+    this.indexedRects.clear()
+
+    // Call onAfterDragEnd hook after all cleanup
+    this.options.onAfterDragEnd?.(item, event.cancelled, finalFromIndex, finalToIndex)
   }
 
   private updateItemPositions(): void {
-    const { gap = 0 } = this.options
+    const { gap = 0, animationDuration = 200 } = this.options
 
     for (let i = 0; i < this.itemElements.length; i++) {
       const el = this.itemElements[i]!
@@ -248,6 +285,9 @@ export class HorizontalSortable<T = unknown> {
       const rect = this.itemRects.get(id!)
       if (!rect) continue
 
+      // Enable transition for smooth animation
+      el.style.transition = `transform ${animationDuration}ms cubic-bezier(0.2, 0, 0, 1)`
+
       let translateX = 0
 
       if (i >= this.currentIndex && i < this.draggingIndex) {
@@ -256,7 +296,8 @@ export class HorizontalSortable<T = unknown> {
         translateX = -(rect.width + gap)
       }
 
-      el.style.transform = translateX !== 0 ? `translateX(${translateX}px)` : ''
+      // Use translate3d for GPU acceleration
+      el.style.transform = translateX !== 0 ? `translate3d(${translateX}px, 0, 0)` : ''
     }
   }
 }

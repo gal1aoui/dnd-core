@@ -106,3 +106,11 @@ export interface DragEngineOptions {
 
 /** Registration cleanup function */
 export type CleanupFn = () => void
+
+/** Lifecycle hooks for drag operations */
+export interface DragLifecycleHooks<T = unknown> {
+  /** Called before drag starts. Return false to prevent drag. */
+  onBeforeDragStart?: (item: T, element: HTMLElement) => boolean | void
+  /** Called after drag ends and all cleanup is complete */
+  onAfterDragEnd?: (item: T, cancelled: boolean, fromIndex: number, toIndex: number) => void
+}

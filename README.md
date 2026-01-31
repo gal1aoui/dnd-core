@@ -56,6 +56,7 @@ npm install @agal1aoui/dnd-core @agal1aoui/vertical-dnd
 ### React - Vertical Sortable List
 
 ```tsx
+import { useState } from 'react'
 import { useVerticalDnd } from '@agal1aoui/react-dnd'
 
 function SortableList() {
@@ -64,13 +65,13 @@ function SortableList() {
   const { containerRef, getItemProps, activeId } = useVerticalDnd({
     items,
     keyExtractor: (item) => item,
-    onReorder: (fromIndex, toIndex) => {
-      setItems(reorder(items, fromIndex, toIndex))
+    onReorder: (newItems, fromIndex, toIndex) => {
+      setItems(newItems)
     },
   })
 
   return (
-    <ul ref={containerRef} className="space-y-2">
+    <ul ref={containerRef as React.RefObject<HTMLDivElement>} className="space-y-2">
       {items.map((item, index) => (
         <li
           key={item}
@@ -85,18 +86,12 @@ function SortableList() {
     </ul>
   )
 }
-
-function reorder<T>(list: T[], from: number, to: number): T[] {
-  const result = [...list]
-  const [removed] = result.splice(from, 1)
-  result.splice(to, 0, removed)
-  return result
-}
 ```
 
 ### React - Horizontal Sortable List
 
 ```tsx
+import { useState } from 'react'
 import { useHorizontalDnd } from '@agal1aoui/react-dnd'
 
 function HorizontalTabs() {
@@ -105,13 +100,13 @@ function HorizontalTabs() {
   const { containerRef, getItemProps } = useHorizontalDnd({
     items: tabs,
     keyExtractor: (tab) => tab,
-    onReorder: (fromIndex, toIndex) => {
-      setTabs(reorder(tabs, fromIndex, toIndex))
+    onReorder: (newTabs, fromIndex, toIndex) => {
+      setTabs(newTabs)
     },
   })
 
   return (
-    <div ref={containerRef} className="flex gap-2">
+    <div ref={containerRef as React.RefObject<HTMLDivElement>} className="flex gap-2">
       {tabs.map((tab, index) => (
         <button
           key={tab}
@@ -130,6 +125,7 @@ function HorizontalTabs() {
 ### React - Kanban Board
 
 ```tsx
+import { useState } from 'react'
 import { useBoardDnd } from '@agal1aoui/react-dnd'
 
 interface Task {
@@ -137,18 +133,33 @@ interface Task {
   title: string
 }
 
+interface Column {
+  id: string
+  title: string
+  items: Task[]
+}
+
 function KanbanBoard() {
-  const [columns, setColumns] = useState([
-    { id: 'todo', items: [{ id: '1', title: 'Task 1' }] },
-    { id: 'doing', items: [{ id: '2', title: 'Task 2' }] },
-    { id: 'done', items: [] },
+  const [columns, setColumns] = useState<Column[]>([
+    { id: 'todo', title: 'To Do', items: [{ id: '1', title: 'Task 1' }] },
+    { id: 'doing', title: 'In Progress', items: [{ id: '2', title: 'Task 2' }] },
+    { id: 'done', title: 'Done', items: [] },
   ])
 
   const { getColumnProps, getItemProps } = useBoardDnd({
     columns,
+    columnKeyExtractor: (column) => column.id,
     itemKeyExtractor: (task: Task) => task.id,
-    onItemMove: ({ item, fromColumnId, toColumnId, fromIndex, toIndex }) => {
-      setColumns(moveItem(columns, fromColumnId, toColumnId, fromIndex, toIndex))
+    getColumnItems: (column) => column.items,
+    onItemMove: ({ item, fromColumn, toColumn, fromIndex, toIndex }) => {
+      setColumns(prev => {
+        const newColumns = prev.map(col => ({ ...col, items: [...col.items] }))
+        const fromCol = newColumns.find(c => c.id === fromColumn)!
+        const toCol = newColumns.find(c => c.id === toColumn)!
+        const [movedItem] = fromCol.items.splice(fromIndex, 1)
+        toCol.items.splice(toIndex, 0, movedItem)
+        return newColumns
+      })
     },
   })
 
@@ -157,15 +168,15 @@ function KanbanBoard() {
       {columns.map((column) => (
         <div
           key={column.id}
-          {...getColumnProps(column.id)}
+          {...getColumnProps(column)}
           className="w-64 p-4 bg-gray-100 rounded"
         >
-          <h3 className="font-bold mb-4">{column.id}</h3>
+          <h3 className="font-bold mb-4">{column.title}</h3>
           <div className="space-y-2">
             {column.items.map((task, index) => (
               <div
                 key={task.id}
-                {...getItemProps(task.id, column.id, index)}
+                {...getItemProps(task, column.id, index)}
                 className="p-3 bg-white rounded shadow cursor-grab
                            data-[dnd-dragging]:shadow-lg
                            data-[dnd-dragging]:rotate-2"
@@ -186,23 +197,22 @@ function KanbanBoard() {
 ```typescript
 // app.component.ts
 import { Component } from '@angular/core'
-import { VerticalDndDirective, DndItemDirective } from '@agal1aoui/angular-dnd'
+import { DndVerticalListDirective, DndItemDirective } from '@agal1aoui/angular-dnd'
 
 @Component({
   selector: 'app-sortable-list',
   standalone: true,
-  imports: [VerticalDndDirective, DndItemDirective],
+  imports: [DndVerticalListDirective, DndItemDirective],
   template: `
     <ul
-      verticalDnd
-      [items]="items"
-      [keyExtractor]="keyExtractor"
-      (reorder)="onReorder($event)"
+      [dndVerticalList]="items"
+      [dndKeyExtractor]="keyExtractor"
+      (dndReorder)="onReorder($event)"
     >
       @for (item of items; track item; let i = $index) {
         <li
           [dndItem]="item"
-          [dndItemIndex]="i"
+          [dndItemKey]="keyExtractor(item)"
           class="p-4 bg-white rounded shadow cursor-grab"
         >
           {{ item }}
@@ -222,11 +232,8 @@ export class SortableListComponent {
 
   keyExtractor = (item: string) => item
 
-  onReorder(event: { fromIndex: number; toIndex: number }) {
-    const result = [...this.items]
-    const [removed] = result.splice(event.fromIndex, 1)
-    result.splice(event.toIndex, 0, removed)
-    this.items = result
+  onReorder(event: { items: string[]; fromIndex: number; toIndex: number }) {
+    this.items = event.items
   }
 }
 ```
@@ -235,24 +242,23 @@ export class SortableListComponent {
 
 ```typescript
 import { Component } from '@angular/core'
-import { HorizontalDndDirective, DndItemDirective } from '@agal1aoui/angular-dnd'
+import { DndHorizontalListDirective, DndHorizontalItemDirective } from '@agal1aoui/angular-dnd'
 
 @Component({
   selector: 'app-horizontal-tabs',
   standalone: true,
-  imports: [HorizontalDndDirective, DndItemDirective],
+  imports: [DndHorizontalListDirective, DndHorizontalItemDirective],
   template: `
     <div
-      horizontalDnd
-      [items]="tabs"
-      [keyExtractor]="keyExtractor"
-      (reorder)="onReorder($event)"
+      [dndHorizontalList]="tabs"
+      [dndKeyExtractor]="keyExtractor"
+      (dndReorder)="onReorder($event)"
       class="flex gap-2"
     >
       @for (tab of tabs; track tab; let i = $index) {
         <button
-          [dndItem]="tab"
-          [dndItemIndex]="i"
+          [dndHorizontalItem]="tab"
+          [dndItemKey]="keyExtractor(tab)"
           class="px-4 py-2 bg-gray-100 rounded"
         >
           {{ tab }}
@@ -266,11 +272,8 @@ export class HorizontalTabsComponent {
 
   keyExtractor = (tab: string) => tab
 
-  onReorder(event: { fromIndex: number; toIndex: number }) {
-    const result = [...this.tabs]
-    const [removed] = result.splice(event.fromIndex, 1)
-    result.splice(event.toIndex, 0, removed)
-    this.tabs = result
+  onReorder(event: { items: string[]; fromIndex: number; toIndex: number }) {
+    this.tabs = event.items
   }
 }
 ```
@@ -336,7 +339,7 @@ const { containerRef, getItemProps, getHandleProps } = useVerticalDnd({
 })
 
 return (
-  <ul ref={containerRef}>
+  <ul ref={containerRef as React.RefObject<HTMLDivElement>}>
     {items.map((item, index) => (
       <li key={item.id} {...getItemProps(item, index)}>
         <span {...getHandleProps(item)} className="cursor-grab">

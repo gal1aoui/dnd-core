@@ -15,7 +15,7 @@ export { useHorizontalDnd } from './hooks/use-horizontal-dnd'
 export type { UseHorizontalDndOptions, UseHorizontalDndReturn, HorizontalItemProps } from './hooks/use-horizontal-dnd'
 
 export { useBoardDnd } from './hooks/use-board-dnd'
-export type { UseBoardDndOptions, UseBoardDndReturn, BoardColumnProps, BoardItemProps, ItemMoveEvent } from './hooks/use-board-dnd'
+export type { UseBoardDndOptions, UseBoardDndReturn, BoardColumnProps, BoardItemProps, ItemMoveEvent, IndicatorColor } from './hooks/use-board-dnd'
 
 export { useLayoutDnd } from './hooks/use-layout-dnd'
 export type { UseLayoutDndOptions, UseLayoutDndReturn, LayoutItemProps } from './hooks/use-layout-dnd'

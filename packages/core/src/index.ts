@@ -21,6 +21,7 @@ export type {
   CollisionInfo,
   DragEngineOptions,
   CleanupFn,
+  DragLifecycleHooks,
 } from './types'
 
 export { DND_ATTRIBUTES } from './types'

@@ -10,4 +10,5 @@ export {
   type BoardOptions,
   type ItemMoveEvent,
   type ColumnReorderEvent,
+  type IndicatorColor,
 } from './board'
