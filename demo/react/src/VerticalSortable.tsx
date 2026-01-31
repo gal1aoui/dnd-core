@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useVerticalDnd } from '@agal1aoui/react-dnd'
 
 interface Task {

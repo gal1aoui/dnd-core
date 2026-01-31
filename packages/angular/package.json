@@ -28,6 +28,9 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "tslib": "^2.6.0"
+  },
   "peerDependencies": {
     "@agal1aoui/dnd-core": "workspace:*",
     "@angular/core": ">=16.0.0"

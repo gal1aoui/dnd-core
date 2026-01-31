@@ -43,7 +43,7 @@ interface Tab {
   styles: [`
     .tab-button {
       @apply px-4 py-3 font-medium cursor-grab select-none
-             border-b-3 -mb-[2px] text-gray-500 border-transparent;
+             border-b-2 -mb-[2px] text-gray-500 border-transparent;
       transition: transform 200ms cubic-bezier(0.2, 0, 0, 1), color 200ms ease;
     }
     .tab-button:hover { @apply text-gray-700; }
