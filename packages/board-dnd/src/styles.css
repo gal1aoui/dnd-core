@@ -1,0 +1,124 @@
+/**
+ * @agallaoui/board-dnd - Default Styles
+ *
+ * These styles provide sensible defaults for the board DnD system.
+ * All classes are prefixed with 'board-dnd-' to avoid conflicts.
+ *
+ * CSS Custom Properties (override these to customize):
+ * --board-dnd-indicator-color: #3b82f6
+ * --board-dnd-overlay-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
+ * --board-dnd-transition-duration: 200ms
+ */
+
+/* Body class during drag */
+.board-dnd-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.board-dnd-dragging * {
+  cursor: grabbing !important;
+}
+
+/* Drag overlay (follows cursor) */
+.board-dnd-overlay {
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.9;
+  box-shadow: var(--board-dnd-overlay-shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
+  transform-origin: top left;
+}
+
+/* Drop indicator (insertion point) */
+.board-dnd-indicator {
+  background-color: var(--board-dnd-indicator-color, #3b82f6);
+  border-radius: 2px;
+  height: 4px;
+  opacity: 0.6;
+  transition: opacity var(--board-dnd-transition-duration, 200ms) ease;
+}
+
+.board-dnd-indicator--active {
+  opacity: 1;
+}
+
+/* Draggable item states */
+[data-board-item] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition:
+    opacity var(--board-dnd-transition-duration, 200ms) ease,
+    transform var(--board-dnd-transition-duration, 200ms) ease;
+}
+
+[data-board-item]:active {
+  cursor: grabbing;
+}
+
+/* Ghost state (item being dragged) */
+[data-board-item].board-dnd-ghost {
+  opacity: 0.5;
+}
+
+/* Column highlight when item is over */
+.board-dnd-column-over {
+  background-color: rgba(59, 130, 246, 0.05);
+  transition: background-color var(--board-dnd-transition-duration, 200ms) ease;
+}
+
+/* Animation for item settling after drop */
+@keyframes board-dnd-settle {
+  from {
+    transform: scale(1.02);
+    box-shadow: var(--board-dnd-overlay-shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
+  }
+  to {
+    transform: scale(1);
+    box-shadow: none;
+  }
+}
+
+.board-dnd-settled {
+  animation: board-dnd-settle var(--board-dnd-transition-duration, 200ms) ease-out;
+}
+
+/* Utility classes for common board layouts */
+.board-dnd-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 16px;
+  min-height: 100%;
+}
+
+.board-dnd-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 320px;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.board-dnd-column-header {
+  font-weight: 600;
+  padding: 8px 4px;
+  margin-bottom: 8px;
+}
+
+.board-dnd-column-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100px;
+  flex: 1;
+}
+
+.board-dnd-card {
+  background: white;
+  border-radius: 6px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}

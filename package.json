@@ -1,37 +1,28 @@
 {
-  "name": "@agal1aoui/dnd",
+  "name": "agallaoui-dnd-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Lightweight drag-and-drop library for React and Angular",
-  "author": "gal1aoui",
-  "license": "MIT",
-  "type": "module",
+  "description": "Modular drag-and-drop library with core and board extensions",
+  "workspaces": [
+    "packages/*",
+    "demos/*"
+  ],
   "scripts": {
-    "build": "pnpm -r build",
-    "build:core": "pnpm --filter @agal1aoui/dnd-core build",
-    "build:packages": "pnpm -r --filter './packages/*' build",
-    "dev": "pnpm -r --parallel dev",
-    "clean": "pnpm -r clean && rimraf node_modules",
-    "lint": "eslint packages --ext .ts,.tsx",
-    "typecheck": "pnpm -r typecheck",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
-    "changeset": "changeset",
-    "version": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "build": "npm run build --workspaces --if-present",
+    "build:core": "npm run build -w @agallaoui/dnd-core",
+    "build:board": "npm run build -w @agallaoui/board-dnd",
+    "dev:react": "npm run dev -w react-demo",
+    "dev:angular": "npm run start -w angular-demo",
+    "test": "npm run test --workspaces --if-present",
+    "clean": "rimraf packages/*/dist demos/*/dist"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.0",
-    "@types/node": "^25.0.10",
-    "eslint": "^9.39.2",
-    "prettier": "^3.1.0",
-    "rimraf": "^6.1.2",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.0",
-    "vitest": "^4.0.18"
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
   },
-  "packageManager": "pnpm@8.12.0",
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "author": "agallaoui",
+  "license": "MIT"
 }

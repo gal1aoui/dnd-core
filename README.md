@@ -1,492 +1,493 @@
-# @agal1aoui/dnd - Lightweight Drag and Drop Library
+# @agallaoui/dnd - Modular Drag & Drop Library
 
-A high-performance, framework-agnostic drag and drop library for React and Angular with zero re-renders during drag operations.
-
-## Why This Library?
-
-Most drag and drop libraries suffer from performance issues due to:
-
-- **Excessive re-renders**: State updates on every mouse move cause React/Angular to re-render components hundreds of times per second
-- **Heavy abstractions**: Complex APIs that add overhead and bundle size
-- **Framework lock-in**: Tightly coupled to a single framework
-
-This library was built with a different philosophy:
-
-### Performance-First Architecture
-
-- **Zero re-renders during drag**: Uses refs and direct DOM manipulation instead of state updates
-- **GPU-accelerated animations**: All transforms use `translate3d()` for hardware acceleration
-- **Cached bounding boxes**: Rects are computed once at drag start, not on every move
-- **Pointer capture**: Uses `setPointerCapture()` for reliable tracking without document listeners
-
-### Headless Core Design
-
-- **Framework-agnostic core**: Pure TypeScript engine that works anywhere
-- **Thin framework adapters**: React hooks and Angular directives are minimal wrappers
-- **Data attribute styling**: Style drag states with CSS using `[data-dnd-dragging]`, `[data-dnd-over]`, etc.
-- **TailwindCSS compatible**: No CSS-in-JS, just pure CSS selectors
+A lightweight, modular drag-and-drop library built on Pointer Events. Designed for Kanban boards, lists, and custom DnD interfaces.
 
 ## Packages
 
-| Package                     | Description                                        |
-|-----------------------------|----------------------------------------------------|
-| `@agal1aoui/dnd-core`       | Core drag engine, sensors, and collision detection |
-| `@agal1aoui/vertical-dnd`   | Vertical sortable lists                            |
-| `@agal1aoui/horizontal-dnd` | Horizontal sortable lists                          |
-| `@agal1aoui/board-dnd`      | Kanban-style multi-column boards                   |
-| `@agal1aoui/layout-dnd`     | Flexible grid/flex layouts                         |
-| `@agal1aoui/react-dnd`      | React hooks and components                         |
-| `@agal1aoui/angular-dnd`    | Angular directives and services                    |
+| Package | Description | Size |
+|---------|-------------|------|
+| [@agallaoui/dnd-core](./packages/dnd-core) | Framework-agnostic core engine | ~2.5kb |
+| [@agallaoui/board-dnd](./packages/board-dnd) | Kanban board extension | ~1.5kb |
 
 ## Installation
 
 ```bash
-# For React
-npm install @agal1aoui/react-dnd
+# Core only (for custom implementations)
+npm install @agallaoui/dnd-core
 
-# For Angular
-npm install @agal1aoui/angular-dnd
-
-# Or install specific packages
-npm install @agal1aoui/dnd-core @agal1aoui/vertical-dnd
+# Board DnD (includes core as dependency)
+npm install @agallaoui/board-dnd
 ```
 
 ## Quick Start
 
-### React - Vertical Sortable List
+### React
 
 ```tsx
-import { useState } from 'react'
-import { useVerticalDnd } from '@agal1aoui/react-dnd'
+import {
+  BoardProvider,
+  useBoardColumn,
+  useBoardItem,
+  DragOverlay,
+  DropIndicator,
+} from '@agallaoui/board-dnd/react';
 
-function SortableList() {
-  const [items, setItems] = useState(['Item 1', 'Item 2', 'Item 3'])
-
-  const { containerRef, getItemProps, activeId } = useVerticalDnd({
-    items,
-    keyExtractor: (item) => item,
-    onReorder: (newItems, fromIndex, toIndex) => {
-      setItems(newItems)
-    },
-  })
+function Board() {
+  const handleDrop = ({ item, fromColumnId, toColumnId, toIndex }) => {
+    // Update your state
+    moveItem(item.id, fromColumnId, toColumnId, toIndex);
+  };
 
   return (
-    <ul ref={containerRef as React.RefObject<HTMLDivElement>} className="space-y-2">
-      {items.map((item, index) => (
-        <li
-          key={item}
-          {...getItemProps(item, index)}
-          className="p-4 bg-white rounded shadow cursor-grab
-                     data-[dnd-dragging]:opacity-50
-                     data-[dnd-dragging]:cursor-grabbing"
-        >
-          {item}
-        </li>
-      ))}
-    </ul>
-  )
+    <BoardProvider onDrop={handleDrop}>
+      <div className="board">
+        {columns.map(col => <Column key={col.id} {...col} />)}
+      </div>
+      <DragOverlay>{item => <Card {...item.data} />}</DragOverlay>
+    </BoardProvider>
+  );
 }
 ```
 
-### React - Horizontal Sortable List
-
-```tsx
-import { useState } from 'react'
-import { useHorizontalDnd } from '@agal1aoui/react-dnd'
-
-function HorizontalTabs() {
-  const [tabs, setTabs] = useState(['Home', 'Profile', 'Settings'])
-
-  const { containerRef, getItemProps } = useHorizontalDnd({
-    items: tabs,
-    keyExtractor: (tab) => tab,
-    onReorder: (newTabs, fromIndex, toIndex) => {
-      setTabs(newTabs)
-    },
-  })
-
-  return (
-    <div ref={containerRef as React.RefObject<HTMLDivElement>} className="flex gap-2">
-      {tabs.map((tab, index) => (
-        <button
-          key={tab}
-          {...getItemProps(tab, index)}
-          className="px-4 py-2 bg-gray-100 rounded
-                     data-[dnd-dragging]:bg-blue-100"
-        >
-          {tab}
-        </button>
-      ))}
-    </div>
-  )
-}
-```
-
-### React - Kanban Board
-
-```tsx
-import { useState } from 'react'
-import { useBoardDnd } from '@agal1aoui/react-dnd'
-
-interface Task {
-  id: string
-  title: string
-}
-
-interface Column {
-  id: string
-  title: string
-  items: Task[]
-}
-
-function KanbanBoard() {
-  const [columns, setColumns] = useState<Column[]>([
-    { id: 'todo', title: 'To Do', items: [{ id: '1', title: 'Task 1' }] },
-    { id: 'doing', title: 'In Progress', items: [{ id: '2', title: 'Task 2' }] },
-    { id: 'done', title: 'Done', items: [] },
-  ])
-
-  const { getColumnProps, getItemProps } = useBoardDnd({
-    columns,
-    columnKeyExtractor: (column) => column.id,
-    itemKeyExtractor: (task: Task) => task.id,
-    getColumnItems: (column) => column.items,
-    onItemMove: ({ item, fromColumn, toColumn, fromIndex, toIndex }) => {
-      setColumns(prev => {
-        const newColumns = prev.map(col => ({ ...col, items: [...col.items] }))
-        const fromCol = newColumns.find(c => c.id === fromColumn)!
-        const toCol = newColumns.find(c => c.id === toColumn)!
-        const [movedItem] = fromCol.items.splice(fromIndex, 1)
-        toCol.items.splice(toIndex, 0, movedItem)
-        return newColumns
-      })
-    },
-  })
-
-  return (
-    <div className="flex gap-4">
-      {columns.map((column) => (
-        <div
-          key={column.id}
-          {...getColumnProps(column)}
-          className="w-64 p-4 bg-gray-100 rounded"
-        >
-          <h3 className="font-bold mb-4">{column.title}</h3>
-          <div className="space-y-2">
-            {column.items.map((task, index) => (
-              <div
-                key={task.id}
-                {...getItemProps(task, column.id, index)}
-                className="p-3 bg-white rounded shadow cursor-grab
-                           data-[dnd-dragging]:shadow-lg
-                           data-[dnd-dragging]:rotate-2"
-              >
-                {task.title}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-```
-
-### Angular - Vertical Sortable List
+### Angular
 
 ```typescript
-// app.component.ts
-import { Component } from '@angular/core'
-import { DndVerticalListDirective, DndItemDirective } from '@agal1aoui/angular-dnd'
+@Injectable({ providedIn: 'root' })
+export class BoardDndService extends BoardDndServiceBase<TaskData> {
+  drop$ = new Subject<BoardDropResult>();
 
-@Component({
-  selector: 'app-sortable-list',
-  standalone: true,
-  imports: [DndVerticalListDirective, DndItemDirective],
-  template: `
-    <ul
-      [dndVerticalList]="items"
-      [dndKeyExtractor]="keyExtractor"
-      (dndReorder)="onReorder($event)"
-    >
-      @for (item of items; track item; let i = $index) {
-        <li
-          [dndItem]="item"
-          [dndItemKey]="keyExtractor(item)"
-          class="p-4 bg-white rounded shadow cursor-grab"
-        >
-          {{ item }}
-        </li>
-      }
-    </ul>
-  `,
-  styles: [`
-    [data-dnd-dragging] {
-      opacity: 0.5;
-      cursor: grabbing;
+  constructor() {
+    super({
+      callbacks: { onDrop: result => this.drop$.next(result) }
+    });
+  }
+}
+```
+
+### Vanilla JavaScript
+
+```typescript
+import { createBoardEngine } from '@agallaoui/board-dnd';
+
+const engine = createBoardEngine({
+  callbacks: {
+    onDrop: ({ item, toColumnId, toIndex }) => {
+      updateData(item.id, toColumnId, toIndex);
     }
-  `]
-})
-export class SortableListComponent {
-  items = ['Item 1', 'Item 2', 'Item 3']
-
-  keyExtractor = (item: string) => item
-
-  onReorder(event: { items: string[]; fromIndex: number; toIndex: number }) {
-    this.items = event.items
   }
-}
+});
 ```
 
-### Angular - Horizontal Sortable List
-
-```typescript
-import { Component } from '@angular/core'
-import { DndHorizontalListDirective, DndHorizontalItemDirective } from '@agal1aoui/angular-dnd'
-
-@Component({
-  selector: 'app-horizontal-tabs',
-  standalone: true,
-  imports: [DndHorizontalListDirective, DndHorizontalItemDirective],
-  template: `
-    <div
-      [dndHorizontalList]="tabs"
-      [dndKeyExtractor]="keyExtractor"
-      (dndReorder)="onReorder($event)"
-      class="flex gap-2"
-    >
-      @for (tab of tabs; track tab; let i = $index) {
-        <button
-          [dndHorizontalItem]="tab"
-          [dndItemKey]="keyExtractor(tab)"
-          class="px-4 py-2 bg-gray-100 rounded"
-        >
-          {{ tab }}
-        </button>
-      }
-    </div>
-  `
-})
-export class HorizontalTabsComponent {
-  tabs = ['Home', 'Profile', 'Settings']
-
-  keyExtractor = (tab: string) => tab
-
-  onReorder(event: { items: string[]; fromIndex: number; toIndex: number }) {
-    this.tabs = event.items
-  }
-}
-```
-
-## Styling with Data Attributes
-
-The library adds data attributes to elements during drag operations, making it easy to style with CSS:
-
-| Attribute           | Applied To        | When                         |
-|---------------------|-------------------|------------------------------|
-| `data-dnd-dragging` | Dragged element   | While being dragged          |
-| `data-dnd-over`     | Droppable element | When dragged item is over it |
-| `data-dnd-handle`   | Handle element    | When using drag handles      |
-
-### TailwindCSS Examples
-
-```html
-<!-- Basic drag styling -->
-<div class="data-[dnd-dragging]:opacity-50 data-[dnd-dragging]:scale-105">
-
-<!-- Rotation effect -->
-<div class="data-[dnd-dragging]:rotate-3 transition-transform">
-
-<!-- Shadow on drag -->
-<div class="shadow data-[dnd-dragging]:shadow-xl">
-
-<!-- Drop target highlighting -->
-<div class="data-[dnd-over]:ring-2 data-[dnd-over]:ring-blue-500">
-```
-
-### Plain CSS
-
-```css
-/* Dragging state */
-[data-dnd-dragging] {
-  opacity: 0.5;
-  cursor: grabbing;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-}
-
-/* Drop target */
-[data-dnd-over] {
-  outline: 2px dashed #3b82f6;
-  outline-offset: 2px;
-}
-
-/* Smooth transitions for siblings */
-[data-dnd-item] {
-  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
-}
-```
-
-## Advanced Usage
-
-### Custom Drag Handles
-
-```tsx
-// React
-const { containerRef, getItemProps, getHandleProps } = useVerticalDnd({
-  items,
-  keyExtractor: (item) => item.id,
-  onReorder: handleReorder,
-})
-
-return (
-  <ul ref={containerRef as React.RefObject<HTMLDivElement>}>
-    {items.map((item, index) => (
-      <li key={item.id} {...getItemProps(item, index)}>
-        <span {...getHandleProps(item)} className="cursor-grab">
-          ⠿
-        </span>
-        {item.title}
-      </li>
-    ))}
-  </ul>
-)
-```
-
-### Disabled State
-
-```tsx
-const { containerRef, getItemProps } = useVerticalDnd({
-  items,
-  keyExtractor: (item) => item.id,
-  onReorder: handleReorder,
-  disabled: isLocked, // Disable all drag operations
-})
-```
-
-### Animation Duration
-
-```tsx
-const { containerRef, getItemProps } = useVerticalDnd({
-  items,
-  keyExtractor: (item) => item.id,
-  onReorder: handleReorder,
-  animationDuration: 300, // milliseconds
-})
-```
-
-### Using the Core Library Directly
-
-For custom implementations or other frameworks:
-
-```typescript
-import { createDragEngine } from '@agal1aoui/dnd-core'
-import { VerticalSortable } from '@agal1aoui/vertical-dnd'
-
-const container = document.getElementById('list')!
-
-const sortable = new VerticalSortable({
-  container,
-  items: ['a', 'b', 'c'],
-  keyExtractor: (item) => item,
-  onReorder: (fromIndex, toIndex) => {
-    console.log(`Moved from ${fromIndex} to ${toIndex}`)
-  },
-})
-
-// Register items
-document.querySelectorAll('[data-item]').forEach((el, index) => {
-  const item = el.getAttribute('data-item')!
-  sortable.registerItem(item, el as HTMLElement, index)
-})
-
-// Cleanup when done
-sortable.destroy()
-```
+---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    Framework Layer                       │
-│  ┌─────────────────┐         ┌───────────────────┐       │
-│  │   React Hooks   │         │ Angular Directives│       │
-│  │ (zero re-render)│         │ (NgZone.outside)  │       │
-│  └────────┬────────┘         └────────┬──────────┘       │
-└───────────┼───────────────────────────┼──────────────────┘
-            │                           │
-┌───────────▼───────────────────────────▼──────────────────┐
-│                   Sortable Layer                         │
-│  ┌──────────┐ ┌────────────┐ ┌───────┐ ┌────────┐        │
-│  │ Vertical │ │ Horizontal │ │ Board │ │ Layout │        │
-│  └────┬─────┘ └─────┬──────┘ └───┬───┘ └───┬────┘        │
-└───────┼─────────────┼────────────┼─────────┼─────────────┘
-        │             │            │         │
-┌───────▼─────────────▼────────────▼─────────▼────────────┐
-│                     Core Layer                          │
-│  ┌────────────┐  ┌───────────┐  ┌────────────────┐      │
-│  │ DragEngine │  │  Sensors  │  │   Collision    │      │
-│  │            │  │ (Pointer) │  │  (AABB, etc.)  │      │
-│  └────────────┘  └───────────┘  └────────────────┘      │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       Application Layer                         │
+│  ┌─────────────────────────┐  ┌─────────────────────────────┐  │
+│  │     React Components    │  │    Angular Directives       │  │
+│  │  (useBoardItem, etc.)   │  │  (boardItem, boardColumn)   │  │
+│  └────────────┬────────────┘  └──────────────┬──────────────┘  │
+├───────────────┼──────────────────────────────┼──────────────────┤
+│               │    @agallaoui/board-dnd      │                  │
+│  ┌────────────┴──────────────────────────────┴──────────────┐  │
+│  │                    Board Engine                          │  │
+│  │  • Column registration    • Drop indicator calculation   │  │
+│  │  • Index-based insertion  • Ghost item state             │  │
+│  └────────────────────────────┬─────────────────────────────┘  │
+├───────────────────────────────┼─────────────────────────────────┤
+│                               │     @agallaoui/dnd-core         │
+│  ┌────────────────────────────┴────────────────────────────┐   │
+│  │                     Core DnD Engine                      │   │
+│  │  • Pointer event handling  • Draggable/Droppable registry│   │
+│  │  • Hit testing             • State management            │   │
+│  │  • Lifecycle callbacks     • Type filtering              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Performance Principles
+---
 
-### 1. Zero Re-renders During Drag (React)
+## Detailed Package Documentation
+
+### @agallaoui/dnd-core
+
+The core package provides the fundamental drag-and-drop engine. It's completely framework-agnostic and can be used with any UI library or vanilla JavaScript.
+
+#### Core Engine Features
+
+| Feature | Description |
+|---------|-------------|
+| **Pointer Events** | Modern unified API for mouse, touch, and stylus input |
+| **Drag Threshold** | Configurable minimum distance before drag starts (prevents accidental drags) |
+| **Type Filtering** | Drop zones can specify which drag types they accept |
+| **Lifecycle Callbacks** | `onDragStart`, `onDragOver`, `onDragLeave`, `onDrop`, `onDragEnd` |
+| **State Subscriptions** | Reactive state updates for UI synchronization |
+| **Pointer Capture** | Optional pointer capture for reliable cross-element tracking |
+
+#### Engine API
 
 ```typescript
-// Bad: causes re-render on every mouse move
-const [position, setPosition] = useState({ x: 0, y: 0 })
-onDragMove: (e) => setPosition(e.position) // 60+ re-renders per second!
+import { createDndEngine } from '@agallaoui/dnd-core';
 
-// Good: update DOM directly via refs
-const positionRef = useRef({ x: 0, y: 0 })
-onDragMove: (e) => {
-  positionRef.current = e.position
-  elementRef.current.style.transform = `translate3d(${e.delta.x}px, ${e.delta.y}px, 0)`
+const engine = createDndEngine({
+  // Minimum pixels before drag activates
+  dragThreshold: 5,
+
+  // Capture pointer events during drag
+  capturePointer: true,
+
+  // Class added to body during drag
+  draggingBodyClass: 'dnd-dragging',
+
+  // Lifecycle callbacks
+  callbacks: {
+    onDragStart: ({ item, element, position, originalEvent }) => {
+      // Called when drag begins (after threshold)
+    },
+    onDragOver: ({ item, dropZone, position, dropZoneElement }) => {
+      // Called continuously while over a valid drop zone
+    },
+    onDragLeave: (dropZone) => {
+      // Called when leaving a drop zone
+    },
+    onDrop: ({ item, dropZone, position, dropZoneElement }) => {
+      // Called on successful drop
+    },
+    onDragEnd: ({ item, dropped, position }) => {
+      // Called when drag ends (success or cancel)
+    }
+  }
+});
+
+// Register draggable elements
+const dragHandle = engine.registerDraggable(element, {
+  id: 'item-1',
+  type: 'card',
+  payload: { title: 'My Item' },
+  disabled: false,
+  handleSelector: '.drag-handle' // Optional: restrict to specific handles
+});
+
+// Register drop zones
+const dropHandle = engine.registerDroppable(element, {
+  id: 'column-1',
+  accepts: ['card'], // Empty array accepts all types
+  payload: { name: 'Todo' },
+  disabled: false
+});
+
+// Subscribe to state changes
+const unsubscribe = engine.subscribe((state) => {
+  // state.phase: 'idle' | 'dragging' | 'dropping'
+  // state.dragData: current drag item info
+  // state.activeDropZone: hovered drop zone
+  // state.pointerPosition: current pointer coordinates
+});
+
+// Cleanup
+dragHandle.destroy();
+dropHandle.destroy();
+engine.destroy();
+```
+
+#### React Adapter
+
+```tsx
+import {
+  DndProvider,
+  useDraggable,
+  useDroppable,
+  useDndState,
+  useDndEngine
+} from '@agallaoui/dnd-core/react';
+
+// Provider wraps your app
+<DndProvider onDrop={handleDrop} onDragStart={handleStart}>
+  <App />
+</DndProvider>
+
+// Make elements draggable
+function DraggableItem({ id, data }) {
+  const { ref, isDragging, dragData } = useDraggable({
+    id,
+    type: 'item',
+    payload: data,
+    disabled: false
+  });
+
+  return <div ref={ref} style={{ opacity: isDragging ? 0.5 : 1 }}>...</div>;
+}
+
+// Make elements droppable
+function DropZone({ id }) {
+  const { ref, isOver, dropZoneData, draggedItem } = useDroppable({
+    id,
+    accepts: ['item'],
+    payload: { zoneId: id }
+  });
+
+  return <div ref={ref} className={isOver ? 'highlight' : ''}>...</div>;
+}
+
+// Access state anywhere
+function StatusBar() {
+  const state = useDndState();
+  return <div>{state.phase === 'dragging' ? 'Dragging...' : 'Ready'}</div>;
 }
 ```
 
-### 2. GPU-Accelerated Transforms
+#### Angular Adapter
 
 ```typescript
-// Bad: triggers layout recalculation
-element.style.left = `${x}px`
-element.style.top = `${y}px`
+import {
+  DndServiceBase,
+  createDraggableDirective,
+  createDroppableDirective
+} from '@agallaoui/dnd-core/angular';
 
-// Good: GPU-accelerated, no layout thrashing
-element.style.transform = `translate3d(${x}px, ${y}px, 0)`
-```
-
-### 3. Cached Bounding Boxes
-
-```typescript
-// Bad: getBoundingClientRect on every mouse move
-onDragMove: (e) => {
-  const rect = element.getBoundingClientRect() // Expensive!
+// Create injectable service
+@Injectable({ providedIn: 'root' })
+export class DndService extends DndServiceBase implements OnDestroy {
+  constructor() {
+    super({ callbacks: { onDrop: e => this.handleDrop(e) } });
+  }
+  ngOnDestroy() { this.destroy(); }
 }
 
-// Good: cache once at drag start
-onDragStart: () => {
-  this.cachedRects = new Map()
-  elements.forEach(el => {
-    this.cachedRects.set(el.id, el.getBoundingClientRect())
-  })
+// Create draggable directive
+@Directive({ selector: '[appDraggable]' })
+export class DraggableDirective implements OnInit, OnDestroy {
+  @Input() itemId!: string;
+  @Input() itemData: any;
+
+  private handle: DraggableHandle | null = null;
+
+  constructor(private el: ElementRef, private dnd: DndService) {}
+
+  ngOnInit() {
+    this.handle = this.dnd.registerDraggable(this.el.nativeElement, {
+      id: this.itemId,
+      type: 'item',
+      payload: this.itemData
+    });
+  }
+
+  ngOnDestroy() { this.handle?.destroy(); }
 }
 ```
 
-### 4. Pointer Capture
+---
+
+### @agallaoui/board-dnd
+
+The board package extends the core with Kanban-specific functionality. It handles column-based layouts, drop indicators, and index-based insertion.
+
+#### Board-Specific Features
+
+| Feature | Description |
+|---------|-------------|
+| **Column Drop Zones** | Automatic column registration and hit testing |
+| **Drop Indicators** | Calculated insertion point based on pointer position |
+| **Ghost Items** | Source item shows at 50% opacity during drag |
+| **Index Tracking** | Precise from/to index for item moves |
+| **State-on-Drop** | No DOM changes until drop completes |
+
+#### Drag UX Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  DRAG START                                                     │
+│  • Original item stays in place                                 │
+│  • Original item gets 50% opacity (ghost)                       │
+│  • Drag overlay appears following cursor                        │
+├─────────────────────────────────────────────────────────────────┤
+│  DRAG OVER COLUMN                                               │
+│  • Drop indicator shows at insertion point                      │
+│  • Indicator position based on pointer Y vs item midpoints     │
+│  • Original item remains stationary (no layout shifts)          │
+├─────────────────────────────────────────────────────────────────┤
+│  DROP                                                           │
+│  • Callback fires with from/to information                      │
+│  • Caller updates their state (item moves in data)              │
+│  • Re-render shows item in new position                         │
+│  • Opacity restored to 100%                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Drop Indicator Calculation
+
+The insertion point is calculated by comparing pointer Y to item midpoints:
+
+```
+┌─────────────────────┐
+│      Item 0         │ midpoint ─┐
+├─────────────────────┤           │ pointer above = insert at 0
+│      Item 1         │ midpoint ─┤
+├─────────────────────┤           │ pointer between = insert at 1
+│      Item 2         │ midpoint ─┤
+└─────────────────────┘           │ pointer below = insert at 2
+
+Algorithm:
+for each item:
+  if pointer.y < item.midpoint:
+    return item.index
+return items.length
+```
+
+#### Board Engine API
 
 ```typescript
-// Bad: document-level listeners
-document.addEventListener('pointermove', handler)
-document.addEventListener('pointerup', handler)
+import { createBoardEngine } from '@agallaoui/board-dnd';
 
-// Good: pointer capture on the element
-element.setPointerCapture(event.pointerId)
-element.addEventListener('pointermove', handler)
-element.addEventListener('pointerup', handler)
+const engine = createBoardEngine({
+  animate: true,
+  animationDuration: 200,
+  itemGap: 8,
+  itemType: 'board-item',
+
+  callbacks: {
+    onDragStart: (item, columnId) => { ... },
+    onDragOver: (item, columnId, insertIndex) => { ... },
+    onDrop: ({ item, fromColumnId, fromIndex, toColumnId, toIndex }) => {
+      // Move item in your data structure
+    },
+    onDragCancel: (item) => { ... }
+  }
+});
+
+// Register column
+const colHandle = engine.registerColumn(element, {
+  id: 'column-1',
+  data: { name: 'Todo' },
+  getItemPositions: () => [
+    { id: 'item-1', index: 0, top: 0, bottom: 50, height: 50 },
+    { id: 'item-2', index: 1, top: 58, bottom: 108, height: 50 },
+  ]
+});
+
+// Register item
+const itemHandle = engine.registerItem(element, {
+  id: 'item-1',
+  data: { title: 'Task 1' },
+  columnId: 'column-1',
+  index: 0,
+  disabled: false
+});
+
+// Subscribe to board state
+engine.subscribe((state) => {
+  // state.isDragging
+  // state.draggedItem
+  // state.sourceColumnId
+  // state.dropIndicator: { columnId, insertIndex, position }
+});
 ```
+
+#### React Board Components
+
+```tsx
+import {
+  BoardProvider,
+  useBoardColumn,
+  useBoardItem,
+  useBoardState,
+  DragOverlay,
+  DropIndicator
+} from '@agallaoui/board-dnd/react';
+
+function Board() {
+  return (
+    <BoardProvider onDrop={handleDrop}>
+      <div className="columns">
+        {columns.map(col => <Column key={col.id} {...col} />)}
+      </div>
+      <DragOverlay>
+        {item => <Card {...item.data} />}
+      </DragOverlay>
+    </BoardProvider>
+  );
+}
+
+function Column({ id, items }) {
+  const { ref, itemsContainerRef, isOver, dropIndicator } = useBoardColumn({
+    id,
+    data: { columnId: id }
+  });
+
+  return (
+    <div ref={ref} className={isOver ? 'over' : ''}>
+      <div ref={itemsContainerRef}>
+        {items.map((item, i) => (
+          <Fragment key={item.id}>
+            {dropIndicator?.insertIndex === i && <DropIndicator />}
+            <Card item={item} columnId={id} index={i} />
+          </Fragment>
+        ))}
+        {dropIndicator?.insertIndex === items.length && <DropIndicator />}
+      </div>
+    </div>
+  );
+}
+
+function Card({ item, columnId, index }) {
+  const { ref, isDragging, style } = useBoardItem({
+    id: item.id,
+    data: item,
+    columnId,
+    index
+  });
+
+  return <div ref={ref} style={style}>{item.title}</div>;
+}
+```
+
+---
+
+## Performance Optimizations
+
+| Optimization | Description |
+|--------------|-------------|
+| **Pointer Events** | Single unified event API, no mouse/touch polyfills |
+| **Minimal DOM Access** | Bounding rects read once per drag-over |
+| **CSS Transforms** | `transform` and `opacity` for GPU-accelerated animations |
+| **Tree-Shakable** | Dead code eliminated in production builds |
+| **Zero Dependencies** | No external runtime dependencies |
+| **Efficient Subscriptions** | Set-based subscriber notification |
+
+### Bundle Sizes
+
+| Import Path | Size (minified + gzip) |
+|-------------|------------------------|
+| `@agallaoui/dnd-core` | ~2.5kb |
+| `@agallaoui/dnd-core/react` | ~3.5kb |
+| `@agallaoui/board-dnd` | ~1.5kb |
+| `@agallaoui/board-dnd/react` | ~2.5kb |
+
+---
+
+## Demos
+
+### React Demo
+
+```bash
+npm run dev:react
+# Opens http://localhost:5173
+```
+
+See [demos/react-demo](./demos/react-demo) for the complete implementation.
+
+### Angular Demo
+
+```bash
+npm run dev:angular
+# Opens http://localhost:4200
+```
+
+See [demos/angular-demo](./demos/angular-demo) for the complete implementation.
+
+---
 
 ## Browser Support
 
@@ -497,13 +498,30 @@ element.addEventListener('pointerup', handler)
 
 Requires Pointer Events API support.
 
-## Roadmap
+---
 
-The following features are planned for future releases:
+## Development
 
-- **Working Code Examples** - Interactive playground and sandbox demos with CodeSandbox/StackBlitz integrations for each package
-- **CDN Support** - UMD builds available via unpkg and jsDelivr for use without a bundler
-- **Smooth Animations** - Enhanced animation system with customizable easing functions, spring physics, and gesture-based velocity tracking
+```bash
+# Install dependencies
+npm install
+
+# Build all packages
+npm run build
+
+# Build individual packages
+npm run build:core
+npm run build:board
+
+# Run demos
+npm run dev:react
+npm run dev:angular
+
+# Clean build outputs
+npm run clean
+```
+
+---
 
 ## License
 
