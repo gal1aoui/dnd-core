@@ -4,10 +4,10 @@ A lightweight, modular drag-and-drop library built on Pointer Events. Designed f
 
 ## Packages
 
-| Package | Description | Size |
-|---------|-------------|------|
-| [@agallaoui/dnd-core](./packages/dnd-core) | Framework-agnostic core engine | ~2.5kb |
-| [@agallaoui/board-dnd](./packages/board-dnd) | Kanban board extension | ~1.5kb |
+| Package                                      | Description                    | Size   |
+|----------------------------------------------|--------------------------------|------  |
+| [@agallaoui/dnd-core](./packages/dnd-core)   | Framework-agnostic core engine | ~2.5kb |
+| [@agallaoui/board-dnd](./packages/board-dnd) | Kanban board extension         | ~1.5kb |
 
 ## Installation
 
@@ -85,25 +85,25 @@ const engine = createBoardEngine({
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Application Layer                         │
-│  ┌─────────────────────────┐  ┌─────────────────────────────┐  │
-│  │     React Components    │  │    Angular Directives       │  │
-│  │  (useBoardItem, etc.)   │  │  (boardItem, boardColumn)   │  │
-│  └────────────┬────────────┘  └──────────────┬──────────────┘  │
+│  ┌─────────────────────────┐  ┌─────────────────────────────┐   │
+│  │     React Components    │  │    Angular Directives       │   │
+│  │  (useBoardItem, etc.)   │  │  (boardItem, boardColumn)   │   │
+│  └────────────┬────────────┘  └──────────────┬──────────────┘   │
 ├───────────────┼──────────────────────────────┼──────────────────┤
 │               │    @agallaoui/board-dnd      │                  │
-│  ┌────────────┴──────────────────────────────┴──────────────┐  │
-│  │                    Board Engine                          │  │
-│  │  • Column registration    • Drop indicator calculation   │  │
-│  │  • Index-based insertion  • Ghost item state             │  │
-│  └────────────────────────────┬─────────────────────────────┘  │
+│  ┌────────────┴──────────────────────────────┴──────────────┐   │
+│  │                    Board Engine                          │   │
+│  │  • Column registration    • Drop indicator calculation   │   │
+│  │  • Index-based insertion  • Ghost item state             │   │
+│  └────────────────────────────┬─────────────────────────────┘   │
 ├───────────────────────────────┼─────────────────────────────────┤
 │                               │     @agallaoui/dnd-core         │
-│  ┌────────────────────────────┴────────────────────────────┐   │
+│  ┌────────────────────────────┴─────────────────────────────┐   │
 │  │                     Core DnD Engine                      │   │
 │  │  • Pointer event handling  • Draggable/Droppable registry│   │
 │  │  • Hit testing             • State management            │   │
 │  │  • Lifecycle callbacks     • Type filtering              │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,14 +117,14 @@ The core package provides the fundamental drag-and-drop engine. It's completely 
 
 #### Core Engine Features
 
-| Feature | Description |
-|---------|-------------|
-| **Pointer Events** | Modern unified API for mouse, touch, and stylus input |
-| **Drag Threshold** | Configurable minimum distance before drag starts (prevents accidental drags) |
-| **Type Filtering** | Drop zones can specify which drag types they accept |
-| **Lifecycle Callbacks** | `onDragStart`, `onDragOver`, `onDragLeave`, `onDrop`, `onDragEnd` |
-| **State Subscriptions** | Reactive state updates for UI synchronization |
-| **Pointer Capture** | Optional pointer capture for reliable cross-element tracking |
+| Feature                 | Description                                                                  |
+|-------------------------|------------------------------------------------------------------------------|
+| **Pointer Events**      | Modern unified API for mouse, touch, and stylus input                        |
+| **Drag Threshold**      | Configurable minimum distance before drag starts (prevents accidental drags) |
+| **Type Filtering**      | Drop zones can specify which drag types they accept                          |
+| **Lifecycle Callbacks** | `onDragStart`, `onDragOver`, `onDragLeave`, `onDrop`, `onDragEnd`            |
+| **State Subscriptions** | Reactive state updates for UI synchronization                                |
+| **Pointer Capture**     | Optional pointer capture for reliable cross-element tracking                 |
 
 #### Engine API
 
@@ -286,13 +286,13 @@ The board package extends the core with Kanban-specific functionality. It handle
 
 #### Board-Specific Features
 
-| Feature | Description |
-|---------|-------------|
-| **Column Drop Zones** | Automatic column registration and hit testing |
-| **Drop Indicators** | Calculated insertion point based on pointer position |
-| **Ghost Items** | Source item shows at 50% opacity during drag |
-| **Index Tracking** | Precise from/to index for item moves |
-| **State-on-Drop** | No DOM changes until drop completes |
+| Feature               | Description                                          |
+|-----------------------|------------------------------------------------------|
+| **Column Drop Zones** | Automatic column registration and hit testing        |
+| **Drop Indicators**   | Calculated insertion point based on pointer position |
+| **Ghost Items**       | Source item shows at 50% opacity during drag         |
+| **Index Tracking**    | Precise from/to index for item moves                 |
+| **State-on-Drop**     | No DOM changes until drop completes                  |
 
 #### Drag UX Flow
 
@@ -305,7 +305,7 @@ The board package extends the core with Kanban-specific functionality. It handle
 ├─────────────────────────────────────────────────────────────────┤
 │  DRAG OVER COLUMN                                               │
 │  • Drop indicator shows at insertion point                      │
-│  • Indicator position based on pointer Y vs item midpoints     │
+│  • Indicator position based on pointer Y vs item midpoints      │
 │  • Original item remains stationary (no layout shifts)          │
 ├─────────────────────────────────────────────────────────────────┤
 │  DROP                                                           │
@@ -447,23 +447,23 @@ function Card({ item, columnId, index }) {
 
 ## Performance Optimizations
 
-| Optimization | Description |
-|--------------|-------------|
-| **Pointer Events** | Single unified event API, no mouse/touch polyfills |
-| **Minimal DOM Access** | Bounding rects read once per drag-over |
-| **CSS Transforms** | `transform` and `opacity` for GPU-accelerated animations |
-| **Tree-Shakable** | Dead code eliminated in production builds |
-| **Zero Dependencies** | No external runtime dependencies |
-| **Efficient Subscriptions** | Set-based subscriber notification |
+| Optimization                | Description                                              |
+|-----------------------------|----------------------------------------------------------|
+| **Pointer Events**          | Single unified event API, no mouse/touch polyfills       |
+| **Minimal DOM Access**      | Bounding rects read once per drag-over                   |
+| **CSS Transforms**          | `transform` and `opacity` for GPU-accelerated animations |
+| **Tree-Shakable**           | Dead code eliminated in production builds                |
+| **Zero Dependencies**       | No external runtime dependencies                         |
+| **Efficient Subscriptions** | Set-based subscriber notification                        |
 
 ### Bundle Sizes
 
-| Import Path | Size (minified + gzip) |
-|-------------|------------------------|
-| `@agallaoui/dnd-core` | ~2.5kb |
-| `@agallaoui/dnd-core/react` | ~3.5kb |
-| `@agallaoui/board-dnd` | ~1.5kb |
-| `@agallaoui/board-dnd/react` | ~2.5kb |
+| Import Path                  | Size (minified + gzip) |
+|------------------------------|------------------------|
+| `@agallaoui/dnd-core`        | ~2.5kb                 |
+| `@agallaoui/dnd-core/react`  | ~3.5kb                 |
+| `@agallaoui/board-dnd`       | ~1.5kb                 |
+| `@agallaoui/board-dnd/react` | ~2.5kb                 |
 
 ---
 
