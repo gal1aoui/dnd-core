@@ -1,0 +1,39 @@
+<div
+  class="column"
+  boardColumn
+  [boardColumnId]="column.id"
+  [boardColumnData]="column"
+>
+  <div class="column-header">
+    <h2>{{ column.title }}</h2>
+    <span class="item-count">{{ column.items.length }}</span>
+  </div>
+
+  <div class="column-items">
+    <ng-container *ngFor="let task of column.items; let i = index">
+      <!-- Drop indicator before item (not at dragged item's position) -->
+      <div
+        *ngIf="shouldShowIndicatorAt(i, task.id)"
+        class="drop-indicator"
+      ></div>
+
+      <!-- Task card -->
+      <div
+        class="task-card"
+        boardItem
+        [boardItemId]="task.id"
+        [boardItemData]="task"
+        [boardItemColumnId]="column.id"
+        [boardItemIndex]="i"
+      >
+        <app-ticket-card [task]="task" />
+      </div>
+    </ng-container>
+
+    <!-- Drop indicator at end -->
+    <div
+      *ngIf="getAdjustedInsertIndex() === column.items.length"
+      class="drop-indicator"
+    ></div>
+  </div>
+</div>

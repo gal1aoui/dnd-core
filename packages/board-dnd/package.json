@@ -16,6 +16,11 @@
       "import": "./dist/react/index.mjs",
       "require": "./dist/react/index.js"
     },
+    "./react/components": {
+      "types": "./dist/react/components/index.d.ts",
+      "import": "./dist/react/components/index.mjs",
+      "require": "./dist/react/components/index.js"
+    },
     "./angular": {
       "types": "./dist/angular/index.d.ts",
       "import": "./dist/angular/index.mjs",
@@ -57,7 +62,7 @@
     "react-dom": "^18.2.0",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.1"
+    "vitest": "^4.0.18"
   },
   "keywords": [
     "drag-and-drop",

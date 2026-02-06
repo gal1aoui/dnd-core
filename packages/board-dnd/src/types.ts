@@ -174,3 +174,54 @@ export interface DropIndicatorProps {
     height: number;
   };
 }
+
+/**
+ * User-configurable board settings that can be persisted
+ */
+export interface BoardSettings {
+  /** Minimum pixels to drag before starting */
+  dragThreshold?: number;
+  /** Whether to animate item movements */
+  animate?: boolean;
+  /** Duration of animations in ms */
+  animationDuration?: number;
+  /** Gap between items in pixels */
+  itemGap?: number;
+  /** Opacity of dragged item ghost */
+  ghostOpacity?: number;
+  /** Color of drop indicator */
+  indicatorColor?: string;
+  /** Height of drop indicator in pixels */
+  indicatorHeight?: number;
+  /** Border radius of drop indicator in pixels */
+  indicatorBorderRadius?: number;
+  /** Whether to allow cross-column dragging */
+  allowCrossColumnDrag?: boolean;
+  /** Cursor style during drag */
+  dragCursor?: string;
+  /** Whether to show the drag overlay */
+  showOverlay?: boolean;
+  /** Z-index for the drag overlay */
+  overlayZIndex?: number;
+  /** Whether to disable text selection during drag */
+  disableTextSelection?: boolean;
+}
+
+/**
+ * Default board settings
+ */
+export const defaultBoardSettings: Required<BoardSettings> = {
+  dragThreshold: 5,
+  animate: true,
+  animationDuration: 200,
+  itemGap: 8,
+  ghostOpacity: 0.5,
+  indicatorColor: '#3b82f6',
+  indicatorHeight: 4,
+  indicatorBorderRadius: 2,
+  allowCrossColumnDrag: true,
+  dragCursor: 'grabbing',
+  showOverlay: true,
+  overlayZIndex: 9999,
+  disableTextSelection: true,
+};

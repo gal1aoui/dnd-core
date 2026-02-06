@@ -10,54 +10,24 @@ npm install @agallaoui/board-dnd @agallaoui/dnd-core
 
 ## Features
 
-- **Column-Based Layout**: Designed for Kanban/Trello-style boards
-- **Drop Indicators**: Visual feedback showing insertion point
-- **Ghost Items**: Original item shows at 50% opacity during drag
-- **Index Tracking**: Precise insertion position within columns
-- **State-on-Drop**: No DOM reordering until drop completes
-- **CSS Animations**: Pure CSS transitions for smooth UX
+- **Column-Based Layout** - Designed for Kanban/Trello-style boards
+- **Drop Indicators** - Visual feedback showing insertion point
+- **Ghost Items** - Source item shows at reduced opacity during drag
+- **Index Tracking** - Precise insertion position within columns
+- **Customizable** - Custom drop indicators, settings persistence, pre-built components
+- **State-on-Drop** - No DOM reordering until drop completes
 
-## Architecture
+## Import Paths
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Board DnD Package                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │   Columns   │  │   Indicator  │  │   Board State    │   │
-│  │  (Droppable)│  │  Calculator  │  │    (Extended)    │   │
-│  └─────────────┘  └──────────────┘  └──────────────────┘   │
-│           │               │                  │              │
-│           └───────────────┼──────────────────┘              │
-│                           │                                 │
-│              ┌────────────┴────────────┐                    │
-│              │    @agallaoui/dnd-core  │                    │
-│              │      (Core Engine)      │                    │
-│              └─────────────────────────┘                    │
-└─────────────────────────────────────────────────────────────┘
-```
+| Path | Description |
+|---|---|
+| `@agallaoui/board-dnd` | Board engine (framework-agnostic) |
+| `@agallaoui/board-dnd/react` | React hooks & providers |
+| `@agallaoui/board-dnd/react/components` | Pre-built React components |
+| `@agallaoui/board-dnd/angular` | Angular service & helpers |
+| `@agallaoui/board-dnd/styles` | Optional CSS styles |
 
-## Drag UX Flow
-
-### 1. Drag Start
-- Original item remains in its position
-- Original item gets 50% opacity (ghost effect)
-- Drag overlay follows the cursor
-
-### 2. Drag Over Column
-- Drop indicator appears at insertion point
-- Indicator matches item width with 50% opacity
-- Original item does NOT move or disappear
-
-### 3. Drop
-- Item removed from source column
-- Item inserted at indicator position in target column
-- Opacity restored to 100%
-- State update fired (caller handles data update)
-
-## Usage
-
-### React
+## React - Hooks API
 
 ```tsx
 import {
@@ -67,62 +37,33 @@ import {
   DragOverlay,
   DropIndicator,
 } from '@agallaoui/board-dnd/react';
-import '@agallaoui/board-dnd/styles';
 
-interface Task {
-  id: string;
-  title: string;
-}
-
-// Card component
-function Card({ id, data, columnId, index }: {
-  id: string;
-  data: Task;
-  columnId: string;
-  index: number;
-}) {
-  const { ref, isDragging, style } = useBoardItem({
-    id,
-    data,
-    columnId,
-    index,
-  });
-
+function Board({ columns, onDrop }) {
   return (
-    <div ref={ref} style={style} className="board-dnd-card">
-      {data.title}
-    </div>
+    <BoardProvider onDrop={onDrop}>
+      <div className="board">
+        {columns.map(col => <Column key={col.id} {...col} />)}
+      </div>
+      <DragOverlay>{item => <Card {...item.data} />}</DragOverlay>
+    </BoardProvider>
   );
 }
 
-// Column component
-function Column({ id, title, items }: {
-  id: string;
-  title: string;
-  items: Task[];
-}) {
+function Column({ id, title, items }) {
   const { ref, itemsContainerRef, isOver, dropIndicator } = useBoardColumn({
     id,
     data: { title },
   });
 
   return (
-    <div
-      ref={ref}
-      className={`board-dnd-column ${isOver ? 'board-dnd-column-over' : ''}`}
-    >
-      <h3 className="board-dnd-column-header">{title}</h3>
-      <div ref={itemsContainerRef} className="board-dnd-column-items">
-        {items.map((item, index) => (
-          <React.Fragment key={item.id}>
-            {dropIndicator?.insertIndex === index && <DropIndicator />}
-            <Card
-              id={item.id}
-              data={item}
-              columnId={id}
-              index={index}
-            />
-          </React.Fragment>
+    <div ref={ref} className={isOver ? 'column over' : 'column'}>
+      <h3>{title}</h3>
+      <div ref={itemsContainerRef}>
+        {items.map((item, i) => (
+          <Fragment key={item.id}>
+            {dropIndicator?.insertIndex === i && <DropIndicator />}
+            <Card item={item} columnId={id} index={i} />
+          </Fragment>
         ))}
         {dropIndicator?.insertIndex === items.length && <DropIndicator />}
       </div>
@@ -130,45 +71,98 @@ function Column({ id, title, items }: {
   );
 }
 
-// Board component
-function Board() {
-  const [columns, setColumns] = useState(initialColumns);
+function Card({ item, columnId, index }) {
+  const { ref, isDragging, style } = useBoardItem({
+    id: item.id,
+    data: item,
+    columnId,
+    index,
+  });
 
-  const handleDrop = useCallback(({ item, fromColumnId, toColumnId, toIndex }) => {
-    setColumns(cols => moveItem(cols, item.id, fromColumnId, toColumnId, toIndex));
-  }, []);
+  return <div ref={ref} style={style}>{item.title}</div>;
+}
+```
 
+## React - Pre-built Components
+
+For quick setup without wiring hooks manually:
+
+```tsx
+import { Board } from '@agallaoui/board-dnd/react/components';
+
+function App() {
   return (
-    <BoardProvider onDrop={handleDrop}>
-      <div className="board-dnd-board">
-        {columns.map(col => (
-          <Column key={col.id} id={col.id} title={col.title} items={col.items} />
-        ))}
-      </div>
-      <DragOverlay>
-        {(item) => (
-          <div className="board-dnd-card">
-            {item.data.title}
-          </div>
-        )}
-      </DragOverlay>
-    </BoardProvider>
+    <Board
+      columns={[
+        { id: 'todo', data: { title: 'To Do' }, items: todoItems },
+        { id: 'done', data: { title: 'Done' }, items: doneItems },
+      ]}
+      onDrop={handleDrop}
+      renderItem={(task) => <TaskCard task={task} />}
+      renderColumnHeader={(col) => <h2>{col.data.title}</h2>}
+      renderOverlay={(item) => <TaskCard task={item.data} />}
+    />
   );
 }
 ```
 
-### Angular
+Individual components are also available:
+
+```tsx
+import { BoardColumn, BoardItem } from '@agallaoui/board-dnd/react/components';
+```
+
+## Custom Drop Indicator
+
+Use the `render` prop for a fully custom indicator:
+
+```tsx
+<DropIndicator
+  columnId={columnId}
+  insertIndex={insertIndex}
+  render={({ columnId, insertIndex }) => (
+    <div className="my-custom-indicator" />
+  )}
+/>
+```
+
+## Settings Provider
+
+Persist user preferences with `BoardSettingsProvider`:
+
+```tsx
+import { BoardSettingsProvider, useBoardSettings } from '@agallaoui/board-dnd/react';
+
+<BoardSettingsProvider
+  storageKey="my-board-settings"
+  initialSettings={{ ghostOpacity: 0.3, indicatorColor: '#10b981' }}
+>
+  <BoardProvider onDrop={handleDrop}>
+    {/* board content */}
+  </BoardProvider>
+</BoardSettingsProvider>
+
+// Access settings anywhere
+function SettingsPanel() {
+  const { settings, updateSettings, resetSettings } = useBoardSettings();
+  // ...
+}
+```
+
+## Angular
+
+### 1. Create a service
 
 ```typescript
-// board-dnd.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
-import { BoardDndServiceBase, BoardDropResult } from '@agallaoui/board-dnd/angular';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { BoardDndServiceBase, BoardDropResult, BoardDragState } from '@agallaoui/board-dnd/angular';
 
 @Injectable({ providedIn: 'root' })
-export class BoardDndService extends BoardDndServiceBase<TaskData> implements OnDestroy {
-  readonly drop$ = new Subject<BoardDropResult<TaskData>>();
-  readonly dragState$ = new BehaviorSubject(this.state);
+export class BoardDndService extends BoardDndServiceBase<Task> implements OnDestroy {
+  readonly drop$ = new Subject<BoardDropResult<Task>>();
+  private readonly _dragState$ = new BehaviorSubject<BoardDragState<Task>>(this.state);
+  readonly dragState$ = this._dragState$.asObservable();
 
   constructor() {
     super({
@@ -176,165 +170,134 @@ export class BoardDndService extends BoardDndServiceBase<TaskData> implements On
         onDrop: (result) => this.drop$.next(result),
       }
     });
-
-    this.subscribe((state) => this.dragState$.next(state));
+    this.subscribe((state) => this._dragState$.next(state));
   }
 
-  ngOnDestroy() {
+  ngOnDestroy(): void {
     this.destroy();
     this.drop$.complete();
-    this.dragState$.complete();
-  }
-}
-
-// board-item.directive.ts
-@Directive({ selector: '[boardItem]' })
-export class BoardItemDirective implements OnInit, OnDestroy, OnChanges {
-  @Input() boardItemId!: string;
-  @Input() boardItemData!: TaskData;
-  @Input() boardItemColumnId!: string;
-  @Input() boardItemIndex!: number;
-
-  @HostBinding('style.opacity')
-  get opacity(): number {
-    const state = this.boardService.state;
-    return state.draggedItem?.id === this.boardItemId ? 0.5 : 1;
-  }
-
-  private handle: ReturnType<typeof this.boardService.registerItem> | null = null;
-
-  constructor(
-    private el: ElementRef<HTMLElement>,
-    private boardService: BoardDndService
-  ) {}
-
-  ngOnInit() {
-    this.el.nativeElement.setAttribute('data-board-item', 'true');
-    this.el.nativeElement.setAttribute('data-board-item-id', this.boardItemId);
-
-    this.handle = this.boardService.registerItem(this.el.nativeElement, {
-      id: this.boardItemId,
-      data: this.boardItemData,
-      columnId: this.boardItemColumnId,
-      index: this.boardItemIndex,
-    });
-  }
-
-  ngOnChanges(changes: SimpleChanges) {
-    if (this.handle) {
-      this.handle.update({
-        data: this.boardItemData,
-        index: this.boardItemIndex,
-      });
-    }
-  }
-
-  ngOnDestroy() {
-    this.handle?.destroy();
+    this._dragState$.complete();
   }
 }
 ```
 
-### Vanilla JavaScript
+### 2. Create directives
+
+```typescript
+@Directive({ selector: '[boardColumn]', standalone: true })
+export class BoardColumnDirective implements OnInit, OnDestroy {
+  @Input({ required: true }) boardColumnId!: string;
+  @Input() boardColumnData: unknown = {};
+
+  constructor(private el: ElementRef, private boardService: BoardDndService) {}
+
+  ngOnInit() {
+    this.handle = this.boardService.registerColumn(this.el.nativeElement, {
+      id: this.boardColumnId,
+      data: this.boardColumnData,
+      getItemPositions: () => this.getItemPositions(),
+    });
+  }
+  // ...
+}
+
+@Directive({ selector: '[boardItem]', standalone: true })
+export class BoardItemDirective implements OnInit, OnDestroy {
+  @Input({ required: true }) boardItemId!: string;
+  @Input() boardItemData!: any;
+  @Input() boardItemColumnId!: string;
+  @Input() boardItemIndex!: number;
+  // ...
+}
+```
+
+### 3. Use in templates
+
+```html
+<div boardColumn [boardColumnId]="column.id" [boardColumnData]="column">
+  <div *ngFor="let task of column.items; let i = index"
+    boardItem
+    [boardItemId]="task.id"
+    [boardItemData]="task"
+    [boardItemColumnId]="column.id"
+    [boardItemIndex]="i"
+  >
+    {{ task.title }}
+  </div>
+</div>
+```
+
+### Angular Settings Manager
+
+```typescript
+import { BoardSettingsManager } from '@agallaoui/board-dnd/angular';
+
+@Injectable({ providedIn: 'root' })
+export class BoardSettingsService extends BoardSettingsManager {
+  constructor() {
+    super({ storageKey: 'board-settings', initialSettings: { ghostOpacity: 0.3 } });
+  }
+}
+```
+
+### Utility: Same-column drag index
+
+```typescript
+import { getAdjustedInsertIndex } from '@agallaoui/board-dnd/angular';
+
+const adjustedIndex = getAdjustedInsertIndex(
+  dropIndicator.insertIndex,
+  items,
+  boardService.sourceColumnId === columnId,
+  boardService.draggedItem?.id
+);
+```
+
+## Vanilla JavaScript
 
 ```typescript
 import { createBoardEngine } from '@agallaoui/board-dnd';
 
 const engine = createBoardEngine({
   callbacks: {
-    onDragStart: (item, columnId) => {
-      // Add ghost class to source item
-      const element = document.querySelector(`[data-id="${item.id}"]`);
-      element?.classList.add('dragging');
-    },
     onDrop: ({ item, fromColumnId, toColumnId, toIndex }) => {
-      // Update your data structure
-      const data = getData();
-      moveItem(data, item.id, fromColumnId, toColumnId, toIndex);
-      renderBoard(data);
-    },
-    onDragEnd: (item) => {
-      // Remove ghost class
-      document.querySelectorAll('.dragging').forEach(el => {
-        el.classList.remove('dragging');
-      });
+      moveItem(item.id, fromColumnId, toColumnId, toIndex);
     }
   }
 });
 
-// Register column
-columns.forEach(column => {
-  const el = document.getElementById(column.id);
-  engine.registerColumn(el, {
-    id: column.id,
-    data: column,
-    getItemPositions: () => getPositionsForColumn(column.id)
-  });
+engine.registerColumn(element, {
+  id: 'column-1',
+  data: { name: 'Todo' },
+  getItemPositions: () => getPositions()
 });
 
-// Register items
-items.forEach(item => {
-  const el = document.getElementById(item.id);
-  engine.registerItem(el, {
-    id: item.id,
-    data: item,
-    columnId: item.columnId,
-    index: item.index
-  });
+engine.registerItem(element, {
+  id: 'item-1',
+  data: { title: 'Task' },
+  columnId: 'column-1',
+  index: 0
 });
 ```
 
-## Drop Indicator Logic
+## Board Settings
 
-The indicator position is calculated by comparing the pointer Y position to item midpoints:
+All settings are optional and have sensible defaults:
 
-```
-┌─────────────────┐
-│     Item 0      │ ← midpoint
-├─────────────────┤
-│     Item 1      │ ← midpoint
-├─────────────────┤
-│     Item 2      │ ← midpoint
-└─────────────────┘
-
-Pointer above Item 1 midpoint → Insert at index 1
-Pointer below Item 1 midpoint → Insert at index 2
-```
-
-## API Reference
-
-### `createBoardEngine(config?)`
-
-Creates a board DnD engine instance.
-
-**Config Options:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `dragThreshold` | `number` | `5` | Pixels before drag starts |
 | `animate` | `boolean` | `true` | Enable animations |
 | `animationDuration` | `number` | `200` | Animation duration (ms) |
 | `itemGap` | `number` | `8` | Gap between items (px) |
-| `itemType` | `string` | `'board-item'` | Drag type identifier |
-| `callbacks` | `BoardCallbacks` | `{}` | Event callbacks |
-
-### Callbacks
-
-```typescript
-interface BoardCallbacks<TItem> {
-  onDragStart?: (item: BoardItem<TItem>, columnId: DndId) => void;
-  onDragOver?: (item: BoardItem<TItem>, columnId: DndId, insertIndex: number) => void;
-  onDrop?: (result: BoardDropResult<TItem>) => void;
-  onDragCancel?: (item: BoardItem<TItem>) => void;
-}
-
-interface BoardDropResult<TItem> {
-  item: BoardItem<TItem>;
-  fromColumnId: DndId;
-  fromIndex: number;
-  toColumnId: DndId;
-  toIndex: number;
-}
-```
+| `ghostOpacity` | `number` | `0.5` | Opacity of dragged item ghost |
+| `indicatorColor` | `string` | `'#3b82f6'` | Drop indicator color |
+| `indicatorHeight` | `number` | `4` | Drop indicator height (px) |
+| `indicatorBorderRadius` | `number` | `2` | Drop indicator border radius |
+| `allowCrossColumnDrag` | `boolean` | `true` | Allow cross-column dragging |
+| `dragCursor` | `string` | `'grabbing'` | Cursor during drag |
+| `showOverlay` | `boolean` | `true` | Show drag overlay |
+| `overlayZIndex` | `number` | `9999` | Overlay z-index |
 
 ## CSS Custom Properties
 
@@ -349,9 +312,10 @@ interface BoardDropResult<TItem> {
 ## Bundle Size
 
 | Import | Size (minified + gzip) |
-|--------|------------------------|
+|---|---|
 | Core | ~1.5kb |
 | + React adapter | ~2.5kb |
+| + React components | ~3.5kb |
 | + Angular adapter | ~2.2kb |
 
 ## License

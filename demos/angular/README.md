@@ -1,27 +1,14 @@
-# Angular DnD Demo
+# Angular Board DnD Demo
 
-A complete Kanban board demo using `@agallaoui/board-dnd` with Angular 17+.
+A complete Kanban board demo using `@agallaoui/board-dnd` with Angular 19.
 
 ## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-
-### Installation
 
 From the monorepo root:
 
 ```bash
-# Install all dependencies
 npm install
-
-# Build the packages first
-npm run build:core
-npm run build:board
-
-# Run the Angular demo
+npm run build:core && npm run build:board
 npm run dev:angular
 ```
 
@@ -32,222 +19,127 @@ npm install
 npm run start
 ```
 
-The demo will be available at `http://localhost:4200`.
+Opens at `http://localhost:4200`.
 
-## Features Demonstrated
+## Features
 
-### Core Functionality
+- Drag task cards between columns
+- Drop indicators with pulse animation
+- Ghost effect on dragged items
+- Drag overlay follows cursor
+- Same-column reordering with adjusted indices
+- Standalone components (Angular 19)
+- RxJS-based state management
+- Responsive layout
 
-- **Drag and Drop**: Drag task cards between columns
-- **Drop Indicators**: Visual feedback showing insertion point
-- **Ghost Effect**: Original item shows at 50% opacity during drag
-- **Drag Overlay**: Dragged card follows cursor with rotation
-
-### Angular Patterns
-
-- **Standalone Components**: Modern Angular 17+ architecture
-- **RxJS Integration**: State management with observables
-- **Directives**: Clean directive-based DnD integration
-- **OnPush Ready**: Compatible with OnPush change detection
-
-## Architecture
+## Project Structure
 
 ```
-src/app/
-├── app.component.ts         # Main board component
-├── board-dnd.service.ts     # DnD service wrapping the engine
-├── board-column.directive.ts # Column drop zone directive
-└── board-item.directive.ts   # Draggable item directive
+src/
+  styles.scss                                     # Global styles
+  app/
+    app.component.ts / .html / .scss              # Root component
+    types/
+      board.types.ts                              # TypeScript interfaces (Task, Column)
+    data/
+      initial-data.ts                             # Sample board data
+    services/
+      board-dnd.service.ts                        # DnD service (extends BoardDndServiceBase)
+    directives/
+      board-column.directive.ts                   # Column drop zone directive
+      board-item.directive.ts                     # Draggable item directive
+    components/
+      board/
+        board.component.ts / .html / .scss        # Board layout + drag overlay
+      column/
+        board-column.component.ts / .html / .scss # Column with indicator logic
+      ticket/
+        ticket-card.component.ts / .html / .scss  # Task card display
 ```
 
-## Key Components
+## How It Works
 
-### BoardDndService
+### Service
 
-Injectable service extending `BoardDndServiceBase`:
+The `BoardDndService` extends `BoardDndServiceBase` and bridges engine events to RxJS:
 
 ```typescript
 @Injectable({ providedIn: 'root' })
-export class BoardDndService extends BoardDndServiceBase<TaskData> {
-  readonly drop$ = new Subject<BoardDropResult<TaskData>>();
-  readonly dragState$ = new BehaviorSubject(this.state);
+export class BoardDndService extends BoardDndServiceBase<Task> implements OnDestroy {
+  readonly drop$ = new Subject<BoardDropResult<Task>>();
+  readonly dragState$ = this._dragState$.asObservable();
 
   constructor() {
     super({
-      callbacks: {
-        onDrop: (result) => this.drop$.next(result)
-      }
+      callbacks: { onDrop: (result) => this.drop$.next(result) }
     });
-
-    this.subscribe(state => this.dragState$.next(state));
+    this.subscribe((state) => this._dragState$.next(state));
   }
 }
 ```
 
-### BoardColumnDirective
+### Directives
 
-Makes elements drop zones:
+**Column directive** - registers the element as a drop zone:
 
-```typescript
-@Directive({ selector: '[boardColumn]', standalone: true })
-export class BoardColumnDirective {
-  @Input() boardColumnId!: string;
-  @Input() boardColumnData: any;
-}
-```
-
-Usage:
 ```html
-<div
-  boardColumn
-  [boardColumnId]="column.id"
-  [boardColumnData]="column"
->
-  <!-- items here -->
+<div boardColumn [boardColumnId]="column.id" [boardColumnData]="column">
+  <!-- items -->
 </div>
 ```
 
-### BoardItemDirective
+**Item directive** - registers the element as draggable:
 
-Makes elements draggable:
-
-```typescript
-@Directive({ selector: '[boardItem]', standalone: true })
-export class BoardItemDirective {
-  @Input() boardItemId!: string;
-  @Input() boardItemData!: TaskData;
-  @Input() boardItemColumnId!: string;
-  @Input() boardItemIndex!: number;
-}
-```
-
-Usage:
 ```html
-<div
-  *ngFor="let task of column.items; let i = index"
-  boardItem
+<div boardItem
   [boardItemId]="task.id"
   [boardItemData]="task"
   [boardItemColumnId]="column.id"
   [boardItemIndex]="i"
 >
-  {{ task.title }}
+  <app-ticket-card [task]="task" />
 </div>
 ```
 
-## Handling Drops
+### Drop Indicator
 
-Subscribe to the `drop$` observable:
+The column component handles indicator positioning, including same-column drag adjustment:
 
 ```typescript
-export class AppComponent implements OnInit {
-  constructor(private boardService: BoardDndService) {}
-
-  ngOnInit() {
-    this.boardService.drop$.subscribe(result => {
-      this.handleDrop(result);
-    });
-  }
-
-  handleDrop({ fromColumnId, fromIndex, toColumnId, toIndex }: BoardDropResult) {
-    // 1. Find columns
-    const source = this.columns.find(c => c.id === fromColumnId);
-    const target = this.columns.find(c => c.id === toColumnId);
-
-    // 2. Move item
-    const [item] = source.items.splice(fromIndex, 1);
-    target.items.splice(toIndex, 0, item);
-
-    // 3. Trigger change detection
-    this.columns = [...this.columns];
-  }
+shouldShowIndicatorAt(index: number, taskId: string): boolean {
+  const adjustedIndex = this.getAdjustedInsertIndex();
+  if (adjustedIndex === null) return false;
+  if (taskId === this.boardService.state.draggedItem?.id) return false;
+  return adjustedIndex === index;
 }
 ```
 
-## Drop Indicator
+### Handling Drops
 
-Show indicators using the service method:
-
-```html
-<ng-container *ngFor="let task of column.items; let i = index">
-  <!-- Indicator before item -->
-  <div
-    *ngIf="getDropIndicator(column.id)?.insertIndex === i"
-    class="drop-indicator"
-  ></div>
-
-  <div boardItem [boardItemId]="task.id" ...>
-    {{ task.title }}
-  </div>
-</ng-container>
-
-<!-- Indicator at end -->
-<div
-  *ngIf="getDropIndicator(column.id)?.insertIndex === column.items.length"
-  class="drop-indicator"
-></div>
-```
+Subscribe to `drop$` in the parent component:
 
 ```typescript
-getDropIndicator(columnId: string) {
-  return this.boardService.getDropIndicatorForColumn(columnId);
+handleDrop(result: BoardDropResult<Task>): void {
+  const source = this.columns.find(c => c.id === result.fromColumnId);
+  const target = this.columns.find(c => c.id === result.toColumnId);
+  const [item] = source.items.splice(result.fromIndex, 1);
+  target.items.splice(result.toIndex, 0, item);
+  this.columns = [...this.columns];
 }
-```
-
-## State Access Patterns
-
-### Reactive (Recommended)
-
-```typescript
-this.boardService.dragState$.pipe(
-  map(state => state.isDragging)
-).subscribe(isDragging => { ... });
-```
-
-### Imperative
-
-```typescript
-const isDragging = this.boardService.state.isDragging;
-const draggedItem = this.boardService.state.draggedItem;
 ```
 
 ## Customization
 
-### Directive Host Bindings
+Override CSS custom properties in `styles.scss`:
 
-```typescript
-@HostBinding('style.opacity')
-get opacity() {
-  return this.isDragging ? 0.5 : 1;
-}
-
-@HostBinding('class.column-over')
-get overClass() {
-  return this.isOver;
-}
-```
-
-### CSS Variables
-
-```css
+```scss
 :root {
   --color-primary: #3b82f6;
-  --color-primary-light: #eff6ff;
-}
-
-.column-over {
-  background-color: var(--color-primary-light);
+  --drop-indicator-color: var(--color-primary);
+  --drop-indicator-height: 4px;
+  --drop-indicator-radius: 2px;
 }
 ```
-
-## Browser Support
-
-- Chrome 55+
-- Firefox 59+
-- Safari 13+
-- Edge 79+
-
-Requires Pointer Events API support.
 
 ## License
 

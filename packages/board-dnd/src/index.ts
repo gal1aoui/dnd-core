@@ -122,6 +122,9 @@
 // Board engine
 export { createBoardEngine, type BoardEngine, type ItemPosition } from './board-engine';
 
+// Settings
+export { defaultBoardSettings } from './types';
+
 // All types
 export type {
   // Board data types
@@ -141,6 +144,9 @@ export type {
   BoardConfig,
   BoardColumnOptions,
   BoardItemOptions,
+
+  // Settings types
+  BoardSettings,
 
   // Render prop types
   DragOverlayProps,

@@ -53,7 +53,9 @@ import type {
   BoardDragState,
   BoardItem,
   DropIndicatorPosition,
+  BoardSettings,
 } from '../types';
+import { defaultBoardSettings } from '../types';
 import type { DndId, Point } from '@agallaoui/dnd-core';
 
 /**
@@ -366,9 +368,13 @@ export function useBoardItem<TItem = unknown>(
 ): UseBoardItemResult {
   const engine = useBoardEngine<TItem>();
   const state = useBoardState<TItem>();
+  const settingsContext = useContext(BoardSettingsContext);
   const handleRef = useRef<ReturnType<typeof engine.registerItem> | null>(null);
   const elementRef = useRef<HTMLElement | null>(null);
   const optionsRef = useRef(options);
+
+  // Get ghost opacity from settings or use default
+  const ghostOpacity = settingsContext?.settings.ghostOpacity ?? defaultBoardSettings.ghostOpacity;
 
   // Update options ref
   useEffect(() => {
@@ -415,7 +421,7 @@ export function useBoardItem<TItem = unknown>(
     state.isDragging && state.draggedItem?.id === options.id;
 
   const style: CSSProperties = {
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? ghostOpacity : 1,
     transition: isDragging ? 'none' : 'opacity 0.2s ease',
   };
 
@@ -436,6 +442,10 @@ export interface DragOverlayProps<TItem = unknown> {
   className?: string;
   /** Optional inline styles */
   style?: CSSProperties;
+  /** Optional className for the wrapper div (outer container) */
+  wrapperClassName?: string;
+  /** Optional inline styles for the wrapper div (outer container) */
+  wrapperStyle?: CSSProperties;
 }
 
 /**
@@ -444,9 +454,20 @@ export interface DragOverlayProps<TItem = unknown> {
  * The overlay is rendered using a portal at the document body level
  * and uses CSS transforms for smooth movement.
  *
- * @example
+ * @example Basic usage
  * ```tsx
  * <DragOverlay>
+ *   {(item) => <Card data={item.data} />}
+ * </DragOverlay>
+ * ```
+ *
+ * @example With wrapper customization
+ * ```tsx
+ * <DragOverlay
+ *   wrapperClassName="drag-container"
+ *   wrapperStyle={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' }}
+ *   className="drag-item"
+ * >
  *   {(item) => <Card data={item.data} />}
  * </DragOverlay>
  * ```
@@ -455,8 +476,12 @@ export function DragOverlay<TItem = unknown>({
   children,
   className = '',
   style: customStyle,
+  wrapperClassName = '',
+  wrapperStyle,
 }: DragOverlayProps<TItem>) {
   const state = useBoardState<TItem>();
+  const settingsContext = useContext(BoardSettingsContext);
+  const settings = settingsContext?.settings ?? defaultBoardSettings;
   const [position, setPosition] = useState<Point | null>(null);
 
   // Track pointer position during drag
@@ -474,7 +499,7 @@ export function DragOverlay<TItem = unknown>({
     return () => window.removeEventListener('pointermove', handlePointerMove);
   }, [state.isDragging]);
 
-  if (!state.isDragging || !state.draggedItem || !position) {
+  if (!state.isDragging || !state.draggedItem || !position || !settings.showOverlay) {
     return null;
   }
 
@@ -489,15 +514,37 @@ export function DragOverlay<TItem = unknown>({
     top: 0,
     transform: `translate(${overlayX}px, ${overlayY}px)`,
     pointerEvents: 'none',
-    zIndex: 9999,
+    zIndex: settings.overlayZIndex,
+    cursor: settings.dragCursor,
     ...customStyle,
   };
 
-  return (
+  const content = (
     <div className={`board-dnd-overlay ${className}`} style={overlayStyle}>
       {children(state.draggedItem)}
     </div>
   );
+
+  // If wrapper props provided, wrap the content
+  if (wrapperClassName || wrapperStyle) {
+    return (
+      <div className={wrapperClassName} style={wrapperStyle}>
+        {content}
+      </div>
+    );
+  }
+
+  return content;
+}
+
+/**
+ * Props passed to custom render function
+ */
+export interface DropIndicatorRenderProps {
+  /** Column ID where the indicator is shown */
+  columnId: DndId;
+  /** Index where the item will be inserted */
+  insertIndex: number;
 }
 
 /**
@@ -510,12 +557,20 @@ export interface DropIndicatorComponentProps {
   className?: string;
   /** Optional inline styles */
   style?: CSSProperties;
+  /** Column ID (passed automatically when using with useBoardColumn) */
+  columnId?: DndId;
+  /** Insert index (passed automatically when using with useBoardColumn) */
+  insertIndex?: number;
+  /** Render prop for fully custom indicator */
+  render?: (props: DropIndicatorRenderProps) => ReactNode;
 }
 
 /**
  * Component showing where an item will be inserted
  *
- * @example
+ * Supports custom rendering via the `render` prop for full control over the indicator appearance.
+ *
+ * @example Basic usage
  * ```tsx
  * function Column({ id, items }) {
  *   const { dropIndicator } = useBoardColumn({ id, data: {} });
@@ -533,16 +588,43 @@ export interface DropIndicatorComponentProps {
  *   );
  * }
  * ```
+ *
+ * @example Custom render prop
+ * ```tsx
+ * <DropIndicator
+ *   columnId={columnId}
+ *   insertIndex={insertIndex}
+ *   render={({ columnId, insertIndex }) => (
+ *     <div className="my-custom-indicator">
+ *       Dropping at position {insertIndex} in column {columnId}
+ *     </div>
+ *   )}
+ * />
+ * ```
  */
 export function DropIndicator({
-  height = 4,
+  height,
   className = '',
   style: customStyle,
+  columnId,
+  insertIndex,
+  render,
 }: DropIndicatorComponentProps) {
+  const settingsContext = useContext(BoardSettingsContext);
+  const settings = settingsContext?.settings ?? defaultBoardSettings;
+  const indicatorHeight = height ?? settings.indicatorHeight;
+  const indicatorColor = settings.indicatorColor;
+  const indicatorBorderRadius = settings.indicatorBorderRadius;
+
+  // If a custom render function is provided, use it
+  if (render && columnId !== undefined && insertIndex !== undefined) {
+    return <>{render({ columnId, insertIndex })}</>;
+  }
+
   const indicatorStyle: CSSProperties = {
-    height,
-    backgroundColor: 'var(--board-dnd-indicator-color, #3b82f6)',
-    borderRadius: 2,
+    height: indicatorHeight,
+    backgroundColor: `var(--board-dnd-indicator-color, ${indicatorColor})`,
+    borderRadius: indicatorBorderRadius,
     opacity: 0.5,
     transition: 'opacity 0.15s ease',
     ...customStyle,
@@ -556,6 +638,146 @@ export function DropIndicator({
   );
 }
 
+// ============================================================================
+// Board Settings Provider
+// ============================================================================
+
+/**
+ * Context for board settings that can be persisted
+ */
+interface BoardSettingsContextValue {
+  settings: Required<BoardSettings>;
+  updateSettings: (settings: Partial<BoardSettings>) => void;
+  resetSettings: () => void;
+}
+
+const BoardSettingsContext = createContext<BoardSettingsContextValue | null>(null);
+
+/**
+ * Props for BoardSettingsProvider component
+ */
+export interface BoardSettingsProviderProps {
+  children: ReactNode;
+  /** Initial settings (merged with defaults) */
+  initialSettings?: BoardSettings;
+  /** Storage key for persisting settings (uses localStorage if provided) */
+  storageKey?: string;
+  /** Callback when settings change */
+  onSettingsChange?: (settings: Required<BoardSettings>) => void;
+}
+
+/**
+ * Provider for board settings that can be persisted
+ *
+ * Use this to allow users to customize and save their board preferences.
+ * Settings are automatically loaded from and saved to localStorage if a
+ * storageKey is provided.
+ *
+ * @example
+ * ```tsx
+ * <BoardSettingsProvider
+ *   storageKey="my-board-settings"
+ *   initialSettings={{ ghostOpacity: 0.3 }}
+ * >
+ *   <BoardProvider onDrop={handleDrop}>
+ *     ...
+ *   </BoardProvider>
+ * </BoardSettingsProvider>
+ * ```
+ */
+export function BoardSettingsProvider({
+  children,
+  initialSettings = {},
+  storageKey,
+  onSettingsChange,
+}: BoardSettingsProviderProps) {
+  // Load from storage on mount
+  const loadedSettings = useMemo(() => {
+    if (storageKey && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          return JSON.parse(stored) as BoardSettings;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    return {};
+  }, [storageKey]);
+
+  const [settings, setSettings] = useState<Required<BoardSettings>>({
+    ...defaultBoardSettings,
+    ...loadedSettings,
+    ...initialSettings,
+  });
+
+  // Save to storage and notify on change
+  useEffect(() => {
+    if (storageKey && typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(settings));
+    }
+    onSettingsChange?.(settings);
+  }, [settings, storageKey, onSettingsChange]);
+
+  const updateSettings = useCallback((updates: Partial<BoardSettings>) => {
+    setSettings((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  const resetSettings = useCallback(() => {
+    setSettings(defaultBoardSettings);
+  }, []);
+
+  const value = useMemo(
+    () => ({ settings, updateSettings, resetSettings }),
+    [settings, updateSettings, resetSettings]
+  );
+
+  return (
+    <BoardSettingsContext.Provider value={value}>
+      {children}
+    </BoardSettingsContext.Provider>
+  );
+}
+
+/**
+ * Hook to access and update board settings
+ *
+ * @example
+ * ```tsx
+ * function SettingsPanel() {
+ *   const { settings, updateSettings, resetSettings } = useBoardSettings();
+ *
+ *   return (
+ *     <div>
+ *       <input
+ *         type="range"
+ *         value={settings.ghostOpacity}
+ *         onChange={(e) => updateSettings({ ghostOpacity: +e.target.value })}
+ *       />
+ *       <button onClick={resetSettings}>Reset</button>
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+export function useBoardSettings(): BoardSettingsContextValue {
+  const context = useContext(BoardSettingsContext);
+  if (!context) {
+    // Return default settings if not wrapped in provider
+    return {
+      settings: defaultBoardSettings,
+      updateSettings: () => {
+        console.warn('useBoardSettings: No BoardSettingsProvider found');
+      },
+      resetSettings: () => {
+        console.warn('useBoardSettings: No BoardSettingsProvider found');
+      },
+    };
+  }
+  return context;
+}
+
 // Re-export types
 export type {
   BoardConfig,
@@ -566,6 +788,9 @@ export type {
   DropIndicatorPosition,
   BoardColumn,
   BoardState,
+  BoardSettings,
 } from '../types';
+
+export { defaultBoardSettings } from '../types';
 
 export type { DndId } from '@agallaoui/dnd-core';

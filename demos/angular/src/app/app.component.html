@@ -1,0 +1,21 @@
+<div class="app">
+  <header class="app-header">
+    <h1>&#64;agallaoui/board-dnd Angular Demo</h1>
+    <p>Drag tasks between columns to reorganize your board</p>
+  </header>
+
+  <app-board [columns]="columns" (drop)="handleDrop($event)" />
+
+  <footer class="app-footer">
+    <p>
+      Built with
+      <a
+        href="https://github.com/agallaoui/dnd"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        &#64;agallaoui/board-dnd
+      </a>
+    </p>
+  </footer>
+</div>

@@ -159,6 +159,35 @@ export class BoardDndServiceBase<TItem = unknown, TColumn = unknown> {
   }
 
   /**
+   * Check if a specific item is currently being dragged
+   */
+  isItemDragging(itemId: DndId): boolean {
+    return this._state.isDragging && this._state.draggedItem?.id === itemId;
+  }
+
+  /**
+   * Get drop indicator for a specific column (null if not hovering)
+   */
+  getDropIndicatorForColumn(columnId: DndId) {
+    const indicator = this._state.dropIndicator;
+    return indicator?.columnId === columnId ? indicator : null;
+  }
+
+  /**
+   * Get the source column ID of the current drag
+   */
+  get sourceColumnId(): DndId | null {
+    return this._state.sourceColumnId;
+  }
+
+  /**
+   * Get the currently dragged item
+   */
+  get draggedItem() {
+    return this._state.draggedItem;
+  }
+
+  /**
    * Cancel current drag operation
    */
   cancel(): void {
@@ -356,6 +385,131 @@ export function createBoardItemDirective<TItem, TColumn>(
   };
 }
 
+// ============================================================================
+// Board Settings Manager
+// ============================================================================
+
+import type { BoardSettings } from '../types';
+import { defaultBoardSettings } from '../types';
+
+/**
+ * Settings manager for Angular board DnD
+ *
+ * Provides settings management with localStorage persistence.
+ * Wrap in an Angular @Injectable() service for DI.
+ *
+ * @example
+ * ```typescript
+ * @Injectable({ providedIn: 'root' })
+ * export class BoardSettingsService extends BoardSettingsManager {
+ *   constructor() {
+ *     super({
+ *       storageKey: 'board-settings',
+ *       initialSettings: { ghostOpacity: 0.3 },
+ *     });
+ *   }
+ * }
+ * ```
+ */
+export class BoardSettingsManager {
+  private _settings: Required<BoardSettings>;
+  private _storageKey?: string;
+  private listeners: Set<(settings: Required<BoardSettings>) => void> = new Set();
+
+  constructor(options: {
+    storageKey?: string;
+    initialSettings?: BoardSettings;
+  } = {}) {
+    this._storageKey = options.storageKey;
+
+    // Load from storage
+    let stored: BoardSettings = {};
+    if (options.storageKey && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(options.storageKey);
+        if (raw) stored = JSON.parse(raw);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    this._settings = {
+      ...defaultBoardSettings,
+      ...stored,
+      ...options.initialSettings,
+    };
+  }
+
+  get settings(): Required<BoardSettings> {
+    return this._settings;
+  }
+
+  updateSettings(updates: Partial<BoardSettings>): void {
+    this._settings = { ...this._settings, ...updates };
+    this.persist();
+    this.listeners.forEach((fn) => fn(this._settings));
+  }
+
+  resetSettings(): void {
+    this._settings = { ...defaultBoardSettings };
+    this.persist();
+    this.listeners.forEach((fn) => fn(this._settings));
+  }
+
+  subscribe(callback: (settings: Required<BoardSettings>) => void): () => void {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
+  }
+
+  destroy(): void {
+    this.listeners.clear();
+  }
+
+  private persist(): void {
+    if (this._storageKey && typeof window !== 'undefined') {
+      localStorage.setItem(this._storageKey, JSON.stringify(this._settings));
+    }
+  }
+}
+
+// ============================================================================
+// Utility: Adjusted insert index for same-column drags
+// ============================================================================
+
+/**
+ * Calculate the adjusted insert index for same-column drags
+ *
+ * When dragging within the same column, the dragged item is still in the DOM,
+ * so the insert index needs adjustment to account for it.
+ *
+ * @example
+ * ```typescript
+ * const adjustedIndex = getAdjustedInsertIndex(
+ *   dropIndicator.insertIndex,
+ *   items,
+ *   boardService.sourceColumnId === columnId,
+ *   boardService.draggedItem?.id
+ * );
+ * ```
+ */
+export function getAdjustedInsertIndex(
+  insertIndex: number,
+  items: Array<{ id: DndId }>,
+  isDraggingFromThisColumn: boolean,
+  draggedItemId: DndId | undefined
+): number {
+  if (!isDraggingFromThisColumn || !draggedItemId) return insertIndex;
+
+  const draggedOriginalIndex = items.findIndex((item) => item.id === draggedItemId);
+  if (draggedOriginalIndex !== -1 && insertIndex > draggedOriginalIndex) {
+    return insertIndex + 1;
+  }
+  return insertIndex;
+}
+
+// Re-export settings
+export { defaultBoardSettings } from '../types';
+
 // Re-export types
 export type {
   BoardConfig,
@@ -366,6 +520,7 @@ export type {
   BoardColumn,
   BoardState,
   DropIndicatorPosition,
+  BoardSettings,
 } from '../types';
 
 export type { ItemPosition } from '../board-engine';

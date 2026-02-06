@@ -1,0 +1,27 @@
+<div class="board">
+  <app-board-column
+    *ngFor="let column of columns"
+    [column]="column"
+  />
+</div>
+
+<!-- Drag overlay -->
+<div
+  *ngIf="draggedItem"
+  class="drag-overlay"
+  [style.left.px]="overlayPosition.x"
+  [style.top.px]="overlayPosition.y"
+>
+  <div class="task-card overlay">
+    <div class="task-header">
+      <span class="task-title">{{ draggedItem.title }}</span>
+      <span
+        class="priority-badge"
+        [ngClass]="'priority-' + draggedItem.priority"
+      >
+        {{ draggedItem.priority }}
+      </span>
+    </div>
+    <p class="task-description">{{ draggedItem.description }}</p>
+  </div>
+</div>
