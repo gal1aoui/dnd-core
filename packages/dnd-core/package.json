@@ -30,7 +30,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
@@ -67,7 +68,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agallaoui/dnd.git"
+    "url": "https://github.com/agallaoui/dnd.git",
+    "directory": "packages/dnd-core"
   },
-  "dependencies": {}
+  "homepage": "https://github.com/agallaoui/dnd/tree/main/packages/dnd-core"
 }

@@ -14,7 +14,10 @@
     "dev:react": "npm run dev -w react-demo",
     "dev:angular": "npm run start -w angular-demo",
     "test": "npm run test --workspaces --if-present",
-    "clean": "rimraf packages/*/dist demos/*/dist"
+    "clean": "rimraf packages/*/dist demos/*/dist",
+    "publish:core": "npm run build:core && npm publish -w @agallaoui/dnd-core --access public",
+    "publish:board": "npm run build:core && npm run build:board && npm publish -w @agallaoui/board-dnd --access public",
+    "publish:all": "npm run publish:core && npm run publish:board"
   },
   "devDependencies": {
     "rimraf": "^5.0.5",

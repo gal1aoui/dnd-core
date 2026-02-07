@@ -12,7 +12,7 @@ export default defineConfig({
   treeshake: true,
   splitting: true,
   sourcemap: true,
-  minify: false,
+  minify: true,
   external: ['react', 'react-dom', '@angular/core'],
   esbuildOptions(options) {
     options.jsx = 'automatic';
